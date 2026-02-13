@@ -33,6 +33,7 @@ SERVICES = [
     ("analytics-telegram-bot", "Telegram-бот дашборда"),
     ("grs-image-web", "Генерация картинок и ссылок"),
     ("spambot", "Спамбот (NewsBot)"),
+    ("quickpack", "Quickpack"),
 ]
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_ALERT_CHAT_ID")

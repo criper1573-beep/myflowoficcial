@@ -210,6 +210,7 @@ SERVER_SERVICES = [
     ("grs-image-web", "Генерация картинок и ссылок", "Веб-интерфейс генерации изображений и загрузки ссылок (flowimage.ru)"),
     ("spambot", "Спамбот (NewsBot)", "Публикации в каналы: Дзен, соцсети и др."),
     ("contentzavod-watchdog", "Watchdog", "Следит за сервисами и сообщает при сбоях"),
+    ("quickpack", "Quickpack", "Сайт Quickpack на сервере"),
 ]
 
 
