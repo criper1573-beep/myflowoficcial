@@ -478,8 +478,8 @@
         return;
       }
       listEl.innerHTML = users.map(function (u) {
-        var displayName = (u.name != null && u.name !== '') ? u.name : u.telegramId;
-        return '<div class="gen-user-row flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800 border border-gray-700 cursor-pointer hover:bg-gray-700" data-tid="' + escapeAttr(u.telegramId) + '">' +
+        var displayName = (u.name != null && u.name !== '') ? u.name : ('ID ' + u.telegramId);
+        return '<div class="gen-user-row flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800 border border-gray-700 cursor-pointer hover:bg-gray-700" data-tid="' + escapeAttr(u.telegramId) + '" data-name="' + escapeAttr(u.name != null && u.name !== '' ? u.name : '') + '">' +
           '<span class="text-white font-medium">' + escapeHtml(displayName) + '</span>' +
           '<span class="text-gray-400">' + (u.count || 0) + '</span>' +
           '</div>';
@@ -487,8 +487,9 @@
       listEl.querySelectorAll('.gen-user-row').forEach(function (row) {
         row.addEventListener('click', function () {
           var tid = row.getAttribute('data-tid');
-          if (currentGenPill === 'images') openGenUserPopup(tid);
-          else openGenLinksUserPopup(tid);
+          var name = row.getAttribute('data-name') || '';
+          if (currentGenPill === 'images') openGenUserPopup(tid, name);
+          else openGenLinksUserPopup(tid, name);
         });
       });
     } catch (e) {
@@ -496,8 +497,9 @@
     }
   }
 
-  function openGenUserPopup(tid) {
-    document.getElementById('gen-user-popup-tid').textContent = tid;
+  function openGenUserPopup(tid, displayName) {
+    var titleEl = document.getElementById('gen-user-popup-title');
+    if (titleEl) titleEl.textContent = (displayName && displayName.trim()) ? (displayName.trim() + ' (ID ' + tid + ')') : ('ID ' + tid);
     document.getElementById('gen-user-popup').classList.remove('hidden');
     document.getElementById('gen-user-popup').setAttribute('aria-hidden', 'false');
     var listEl = document.getElementById('gen-user-popup-list');
@@ -537,8 +539,9 @@
       });
   }
 
-  function openGenLinksUserPopup(tid) {
-    document.getElementById('gen-links-user-popup-tid').textContent = tid;
+  function openGenLinksUserPopup(tid, displayName) {
+    var titleEl = document.getElementById('gen-links-user-popup-title');
+    if (titleEl) titleEl.textContent = (displayName && displayName.trim()) ? (displayName.trim() + ' (ID ' + tid + ')') : ('ID ' + tid);
     document.getElementById('gen-links-user-popup').classList.remove('hidden');
     document.getElementById('gen-links-user-popup').setAttribute('aria-hidden', 'false');
     var listEl = document.getElementById('gen-links-user-popup-list');

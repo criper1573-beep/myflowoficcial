@@ -64,8 +64,8 @@ bot.start()
 from blocks.spambot import NewsBot
 
 bot = NewsBot(
-    bot_token="8468363310:AAGk9yNoWKe_dBHf4vOesj-j3tfAj6TF9AE",
-    channel_id="@flowcabinetnews"
+    bot_token="your_bot_token_from_BotFather",
+    channel_id="@your_channel"
 )
 
 bot.start()

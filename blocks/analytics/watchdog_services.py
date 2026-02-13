@@ -31,6 +31,7 @@ CHECK_INTERVAL = int(os.getenv("WATCHDOG_INTERVAL", "90"))
 SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики"),
     ("analytics-telegram-bot", "Telegram-бот дашборда"),
+    ("grs-image-web", "Генерация картинок и ссылок"),
     ("spambot", "Спамбот (NewsBot)"),
 ]
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")

@@ -266,7 +266,7 @@ if not API_KEY:
 
 ```python
 # ❌ НЕПРАВИЛЬНО - хардкод токенов
-API_KEY = "8468363310:AAGk9yNoWKe_dBHf4vOesj-j3tfAj6TF9AE"
+API_KEY = "1234567890:ABCdefGHI..."
 
 # ❌ НЕПРАВИЛЬНО - токены в коде
 BOT_TOKEN = "your_token_here"

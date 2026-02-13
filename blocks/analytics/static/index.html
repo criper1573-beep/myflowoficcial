@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>КонтентЗавод — Аналитика пайплайна</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link href="/static/style.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -172,7 +173,7 @@
     <div class="absolute inset-0 bg-black/70" data-close="gen-user-popup"></div>
     <div class="absolute inset-4 sm:inset-8 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl flex flex-col overflow-hidden">
       <div class="flex justify-between items-center p-4 border-b border-gray-600">
-        <h3 class="text-lg font-semibold text-white">Генерации пользователя <span id="gen-user-popup-tid"></span></h3>
+        <h3 class="text-lg font-semibold text-white">Генерации пользователя <span id="gen-user-popup-title"></span></h3>
         <button type="button" id="gen-user-popup-close" class="p-2 text-gray-400 hover:text-white rounded" aria-label="Закрыть">✕</button>
       </div>
       <div id="gen-user-popup-list" class="flex-1 overflow-auto p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
@@ -184,7 +185,7 @@
     <div class="absolute inset-0 bg-black/70" data-close="gen-links-user-popup"></div>
     <div class="absolute inset-4 sm:inset-8 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl flex flex-col overflow-hidden">
       <div class="flex justify-between items-center p-4 border-b border-gray-600">
-        <h3 class="text-lg font-semibold text-white">Ссылки пользователя <span id="gen-links-user-popup-tid"></span></h3>
+        <h3 class="text-lg font-semibold text-white">Ссылки пользователя <span id="gen-links-user-popup-title"></span></h3>
         <button type="button" id="gen-links-user-popup-close" class="p-2 text-gray-400 hover:text-white rounded" aria-label="Закрыть">✕</button>
       </div>
       <div id="gen-links-user-popup-list" class="flex-1 overflow-auto p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>

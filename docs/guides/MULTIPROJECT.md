@@ -75,8 +75,8 @@ project_id: flowcabinet
 name: Flow Cabinet
 
 telegram:
-  bot_token: "8468363310:AAG..."
-  channel_id: "@flowcabinetnews"
+  bot_token: "your_bot_token"
+  channel_id: "@your_channel"
 
 spambot:
   cta_text: "\n\nПланируешь ремонт в офисе?...\n"
