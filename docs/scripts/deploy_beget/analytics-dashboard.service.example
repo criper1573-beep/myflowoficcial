@@ -1,0 +1,21 @@
+# Юнит systemd для дашборда аналитики.
+# Подставь: ТВОЙ_ПОЛЬЗОВАТЕЛЬ и /путь/к/проекту (например /home/u123/contentzavod)
+# Разместить: sudo nano /etc/systemd/system/analytics-dashboard.service
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable analytics-dashboard && sudo systemctl start analytics-dashboard
+
+[Unit]
+Description=КонтентЗавод — дашборд аналитики
+After=network.target
+
+[Service]
+Type=simple
+User=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+Group=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+WorkingDirectory=/путь/к/проекту
+Environment="PYTHONPATH=/путь/к/проекту"
+ExecStart=/путь/к/проекту/venv/bin/uvicorn blocks.analytics.api:app --host 127.0.0.1 --port 8050
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

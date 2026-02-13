@@ -1,0 +1,9 @@
+.env
+zen_storage_state.json
+.zen_last_post.json
+*_storage_state.json
+autopost_debug.log
+*.png
+.tmp_zen_cover/
+publish/
+__pycache__/

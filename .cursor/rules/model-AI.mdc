@@ -1,0 +1,47 @@
+---
+alwaysApply: true
+---
+
+# ========================================
+# CONTENT ZAVOD — АВТО ВЫБОР МОДЕЛЕЙ
+# ========================================
+
+# ОСНОВНЫЕ МОДЕЛИ
+[models]
+# КОД/АВТОМАТИЗАЦИЯ (лучший)
+code = "Claude Opus 4.6"
+playwright = "Claude Opus 4.6"
+automation = "Claude Opus 4.6"
+tests = "Claude Opus 4.6"
+composer = "Claude Opus 4.6"
+
+# БЫСТРЫЕ ЗАДАЧИ
+chat = "GPT 5.2"
+docs = "Claude 3.7 Sonnet"
+ideas = "Claude 3.7 Sonnet"
+
+# АВТО-ОПРЕДЕЛЕНИЕ по ключевым словам
+[auto-model]
+# ✅ Opus 4.6 (кодинг/автоматизация)
+if contains ["код", "исправь", "playwright", "python", "тест", "добавь", "создай", "automation", "mcp", "api", "бот", "скрипт", "дзен", "zen", "vk", "telegram", "youtube"]:
+  model = "Claude Opus 4.6"
+
+# ✅ GPT 5.2 (контент/идеи — быстро)
+if contains ["статья", "пост", "идея", "тема", "план", "seo", "заголовок"]:
+  model = "GPT 5.2"
+
+# ✅ Sonnet (документация/реновация)  
+if contains ["ремонт", "материал", "расчет", "бюджет", "документ", "инструкция"]:
+  model = "Claude 3.7 Sonnet"
+
+# ПРОЕКТЫ → МОДЕЛИ
+[projects]
+# Автопостинг
+"blocks/autopost_*" = "Claude Opus 4.6"
+"docs/scripts" = "Claude Opus 4.6"
+
+# Контент
+"content/*" = "GPT 5.2"
+
+# Реновация  
+"renovation/*" = "Claude 3.7 Sonnet"

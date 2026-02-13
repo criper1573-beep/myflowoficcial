@@ -1,0 +1,19 @@
+# Zen autopost: обход serialize binary error
+
+## Проблема
+
+При работе с Playwright через Cursor: `[internal] serialize binary: invalid int 32` — бинарные данные (скриншоты) попадают в ответ агента.
+
+## Решение
+
+Использовать **HTTP API** вместо прямого запуска Playwright. См. `docs/guides/PLAYWRIGHT_AUTOPOST.md` §5.
+
+- `npm run zen:publish` — публикует из `article_to_publish.json`
+- `npm run zen:draft`
+- `npm run zen:delete`
+
+Скрипты запускают `zen_api_client.py` → HTTP‑сервер → Playwright. Возвращается только JSON.
+
+## Прямой запуск
+
+`python -m blocks.autopost_zen --file ... --publish` — если API недоступен.

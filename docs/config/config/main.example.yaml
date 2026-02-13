@@ -1,0 +1,28 @@
+# Пример основной конфигурации
+# Скопировать в main.yaml и настроить
+
+app:
+  name: КонтентЗавод
+  version: 1.0
+  debug: false
+
+pipeline:
+  default: full_content_pipeline
+  retry_attempts: 3
+  retry_delay_seconds: 60
+
+storage:
+  path: ./storage
+  content_dir: content
+  images_dir: images
+  logs_dir: logs
+
+# Блоки включаются/отключаются через pipelines.yaml
+# Настройки отдельных блоков — в блоках или здесь по имени
+blocks:
+  # content_creation:
+  #   max_title_length: 100
+  #   tone: professional
+  # autopost_vk:
+  #   enabled: true
+  #   rate_limit_per_hour: 10

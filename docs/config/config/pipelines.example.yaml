@@ -1,0 +1,42 @@
+# Пример определения пайплайнов
+# Скопировать в pipelines.yaml и настроить
+
+pipelines:
+  full_content_pipeline:
+    description: "Полный цикл: создание → адаптация → публикация"
+    blocks:
+      - content_creation.titles
+      - content_creation.article_text
+      - content_creation.images
+      - content_creation.seo_optimization
+      - content_creation.hashtags
+      - moderation
+      - platform_adapters
+      - scheduler
+      - autopost_vk
+      - autopost_zen
+      - autopost_pinterest
+      - autopost_vcru
+      - autopost_telegram
+      - storage
+      - logging_monitor
+
+  content_only:
+    description: "Только создание контента без публикации"
+    blocks:
+      - content_creation.titles
+      - content_creation.article_text
+      - content_creation.images
+      - content_creation.seo_optimization
+      - content_creation.hashtags
+      - storage
+
+  post_existing:
+    description: "Публикация уже готового контента"
+    blocks:
+      - platform_adapters
+      - scheduler
+      - autopost_vk
+      - autopost_zen
+      - autopost_telegram
+      - storage

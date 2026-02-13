@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Конфигурация и секреты
+.env
+docs/scripts/deploy_beget/grs-image-web.service
+.env.local
+config/*.local.yaml
+*.secret.*
+*_storage_state.json
+zen_storage_state.json
+.browser_profile_capture/
+.browser_profile_verify/
+
+# Хранилище и логи
+storage/content/
+storage/images/
+storage/logs/
+storage/*.db
+*.log
+blocks/spambot/newsbot_posted.json
+blocks/grs_image_web/users.json
+
+# Бекапы (локальные, не коммитятся)
+backups/backup_*/
+backups/metadata.json
+docs/backups/backups/backup_*/
+docs/backups/backups/metadata.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

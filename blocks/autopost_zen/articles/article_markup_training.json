@@ -1,0 +1,19 @@
+{
+  "title": "Тренировка разметки Дзен (Playwright)",
+  "meta_description": "Тестовая статья: все типы разметки редактора Дзен на отдельных блоках.",
+  "content_blocks": [
+    { "type": "html", "content": "<h1>Заголовок 1 (h1)</h1>" },
+    { "type": "html", "content": "<h2>Заголовок 2 (h2)</h2>" },
+    { "type": "html", "content": "<h3>Заголовок 3 (h3)</h3>" },
+    { "type": "html", "content": "<h4>Заголовок 4 (h4)</h4>" },
+    { "type": "html", "content": "<p>Абзац (p) — обычный текст параграфа.</p>" },
+    { "type": "html", "content": "<ul>\n<li>Пункт маркированного списка 1</li>\n<li>Пункт маркированного списка 2</li>\n<li>Пункт маркированного списка 3</li>\n</ul>" },
+    { "type": "html", "content": "<ol>\n<li>Пункт нумерованного списка 1</li>\n<li>Пункт нумерованного списка 2</li>\n<li>Пункт нумерованного списка 3</li>\n</ol>" },
+    { "type": "html", "content": "<blockquote>Цитата (blockquote) — выделенный блок цитаты.</blockquote>" },
+    { "type": "html", "content": "<p>Текст со <a href=\"https://example.com\">ссылкой (a)</a> внутри абзаца.</p>" },
+    { "type": "image", "path": "trends_office_2026_cover.png", "caption": "Картинка (image) — блок с подписью" }
+  ],
+  "tags": ["тест", "разметка", "тренировка"],
+  "cover_image": "trends_office_2026_cover.png",
+  "publish": false
+}

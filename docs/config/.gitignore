@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# Конфигурация и секреты
+.env
+config/*.local.yaml
+*.secret.*
+
+# Хранилище и логи
+storage/content/
+storage/images/
+storage/logs/
+*.log
+
+# Бекапы (локальные, не коммитятся)
+backups/backup_*/
+backups/metadata.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

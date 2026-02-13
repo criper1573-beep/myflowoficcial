@@ -1,0 +1,50 @@
+[
+  {
+    "i": 6,
+    "tag": "DIV",
+    "text": "Тестовый абзац для проверки.",
+    "class": "zen-editor-block zen-editor-block-paragraph",
+    "role": null,
+    "ariaLabel": null
+  },
+  {
+    "i": 7,
+    "tag": "DIV",
+    "text": "Тестовый абзац для проверки.",
+    "class": "public-DraftStyleDefault-block public-DraftStyleDefault-ltr",
+    "role": null,
+    "ariaLabel": null
+  },
+  {
+    "i": 8,
+    "tag": "DIV",
+    "text": "",
+    "class": "zen-editor-block zen-editor-block-paragraph",
+    "role": null,
+    "ariaLabel": null
+  },
+  {
+    "i": 9,
+    "tag": "DIV",
+    "text": "",
+    "class": "public-DraftStyleDefault-block public-DraftStyleDefault-ltr",
+    "role": null,
+    "ariaLabel": null
+  },
+  {
+    "i": 10,
+    "tag": "BUTTON",
+    "text": "",
+    "class": "article-editor-desktop--side-button__sideButton-1z",
+    "role": null,
+    "ariaLabel": null
+  },
+  {
+    "i": 12,
+    "tag": "BUTTON",
+    "text": "Загрузите файл",
+    "class": "article-editor-desktop--image-popup__fileButton-Ye article-editor-desktop--base-button__rootElement-75  article-editor-d",
+    "role": null,
+    "ariaLabel": null
+  }
+]

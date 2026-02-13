@@ -1,0 +1,16 @@
+{
+  "name": "content-factory",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "zen:publish": "python blocks/autopost_zen/zen_api_client.py publish --file blocks/autopost_zen/articles/article_to_publish.json",
+    "zen:publish:automation": "python blocks/autopost_zen/zen_api_client.py publish --file blocks/autopost_zen/articles/automation_make_expanded.json",
+    "zen:publish:commercial": "python blocks/autopost_zen/zen_api_client.py publish --file blocks/autopost_zen/articles/commercial_remont.json",
+    "zen:publish:flowcabinet": "python blocks/autopost_zen/zen_api_client.py publish --file blocks/autopost_zen/articles/flowcabinet_office.json",
+    "zen:draft": "python blocks/autopost_zen/zen_api_client.py draft --file blocks/autopost_zen/articles/article_to_publish.json",
+    "zen:delete": "python blocks/autopost_zen/zen_api_client.py delete --count 3",
+    "zen:direct:publish": "python -m blocks.autopost_zen --file blocks/autopost_zen/articles/article_to_publish.json --publish",
+    "zen:direct:delete": "python -m blocks.autopost_zen --delete-only --delete-count 3",
+    "mcp": "python -m blocks.mcp_server"
+  }
+}

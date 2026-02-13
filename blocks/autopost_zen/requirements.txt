@@ -1,0 +1,8 @@
+# Автопостинг Дзен (UNIVERSAL_AUTOPOST_PROMPT)
+# Установка из корня: pip install -r blocks/autopost_zen/requirements.txt
+playwright>=1.48.0
+playwright-stealth>=2.0.0
+python-dotenv>=1.0.0
+pillow>=10.4.0
+requests>=2.32.0
+beautifulsoup4>=4.12.3

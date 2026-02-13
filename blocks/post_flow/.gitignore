@@ -1,0 +1,4 @@
+credentials.json
+posts_history.json
+__pycache__/
+.env

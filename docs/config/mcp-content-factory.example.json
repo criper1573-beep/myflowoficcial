@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "content-factory": {
+      "command": "python",
+      "args": ["-m", "blocks.mcp_server"],
+      "cwd": "C:\\Users\\bbru7\\Desktop\\ContentZavod"
+    }
+  }
+}

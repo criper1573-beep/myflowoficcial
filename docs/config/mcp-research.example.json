@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "content-factory": {
+      "command": "python",
+      "args": ["-m", "blocks.mcp_server"],
+      "cwd": "C:\\Users\\bbru7\\Desktop\\ContentZavod"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--timeout-navigation=120000"
+      ]
+    },
+    "fetch": {
+      "command": "py",
+      "args": ["-m", "mcp_server_fetch"]
+    }
+  }
+}

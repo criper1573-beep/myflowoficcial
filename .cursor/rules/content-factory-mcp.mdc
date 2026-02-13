@@ -1,0 +1,27 @@
+---
+description: Использовать MCP ContentZavod для задач проекта
+alwaysApply: true
+---
+
+# MCP ContentZavod
+
+Проект имеет собственный MCP-сервер: **content-factory**.
+
+## Инструменты
+
+### Zen
+- `zen_publish`, `zen_draft`, `zen_delete`, `zen_list_articles`
+
+### GRS AI
+- `grs_chat` — генерация текста
+- `grs_chat_messages` — диалог (messages JSON)
+- `grs_models` — список моделей
+- `grs_image` — генерация изображений
+
+## Когда использовать
+
+При задачах «опубликовать в Дзен», «удалить черновики», «сохранить статью» — вызывать инструменты MCP `content-factory`, а не `npm run zen:*` или терминал.
+
+## Добавление инструментов
+
+Новые методы добавлять в `blocks/mcp_server/server.py` с декоратором `@mcp.tool()`.

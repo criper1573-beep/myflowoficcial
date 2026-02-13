@@ -1,0 +1,2 @@
+  cd /d c:\Users\bbru7\Desktop\ContentZavod
+  python docs\scripts\scripts\run_zen_publish.py -f blocks\autopost_zen\articles\article_trends_office_2026.json -p

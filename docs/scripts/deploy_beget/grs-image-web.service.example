@@ -1,0 +1,21 @@
+# Юнит systemd для GRS Image Web (генерация изображений).
+# Подставь: пользователь и /путь/к/проекту (например /root/contentzavod)
+# Разместить: sudo nano /etc/systemd/system/grs-image-web.service
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable grs-image-web && sudo systemctl start grs-image-web
+
+[Unit]
+Description=КонтентЗавод — GRS Image Web (генерация изображений)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=__PROJECT_DIR__
+Environment="PYTHONPATH=__PROJECT_DIR__"
+ExecStart=__PROJECT_DIR__/venv/bin/uvicorn blocks.grs_image_web.api:app --host 127.0.0.1 --port 8765
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

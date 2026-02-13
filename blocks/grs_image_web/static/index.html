@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru" id="html-theme" class="theme-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Генерация изображений — FLOW</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="/static/style.css" rel="stylesheet" />
+</head>
+<body class="page-body min-h-screen">
+  <div id="app" class="container mx-auto px-3 sm:px-6 py-4 sm:py-6 max-w-3xl">
+    <!-- Шапка: 1) только заголовок; 2) слева — тема, справа — авторизация и История -->
+    <header class="mb-6 space-y-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold page-title">Генерация изображений</h1>
+        <p class="text-sm page-subtitle">GRS AI · nano-banana</p>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <button type="button" id="btn-theme" class="theme-btn px-3 py-1.5 rounded-lg text-sm border" aria-label="Тема">🌓</button>
+        <div id="header-auth" class="flex items-center gap-2">
+          <span id="user-name" class="page-subtitle text-sm hidden"></span>
+          <button type="button" id="btn-logout" class="header-btn px-3 py-1.5 rounded-lg text-sm hidden">Выйти</button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <button type="button" id="btn-new-generation" class="header-btn px-4 py-2 rounded-lg text-sm hidden">Новая генерация</button>
+        <button type="button" id="btn-history" class="header-btn px-4 py-2 rounded-lg text-sm hidden">История генераций</button>
+      </div>
+    </header>
+
+    <!-- Экран входа через Telegram -->
+    <section id="screen-login" class="card p-6 text-center">
+      <p class="mb-4 input-label">Войдите через Telegram, чтобы генерировать изображения и хранить историю в своём аккаунте.</p>
+      <div id="telegram-login-container"></div>
+      <p id="login-no-bot" class="text-amber-500 text-sm mt-4 hidden">Бот для входа не настроен. Укажите GRS_IMAGE_WEB_BOT_USERNAME в .env</p>
+    </section>
+
+    <!-- Основной экран: форма генерации -->
+    <main id="screen-main" class="hidden space-y-6">
+      <!-- Референсы -->
+      <section class="card p-4">
+        <label class="block input-label text-sm uppercase tracking-wide mb-3">Референсы (до 5 фото)</label>
+        <div id="refs-container" class="space-y-3">
+          <div class="ref-row flex items-center gap-3 flex-wrap">
+            <div class="ref-preview-wrap hidden">
+              <img class="ref-preview hidden" alt="" />
+              <span class="ref-preview-placeholder input-label">—</span>
+            </div>
+            <input type="file" accept="image/*" class="ref-input text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0" />
+            <button type="button" class="ref-remove hidden" aria-label="Удалить референс">×</button>
+          </div>
+        </div>
+        <button type="button" id="btn-add-ref" class="mt-2 px-3 py-1.5 rounded text-sm btn-secondary hidden">+ Добавить референс</button>
+      </section>
+
+      <!-- Промпт -->
+      <section class="card p-4">
+        <label class="block text-sm uppercase tracking-wide mb-2 input-label">Промпт</label>
+        <textarea id="prompt-input" rows="4" class="w-full rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent input-area" placeholder="Опишите, что должно быть на изображении…"></textarea>
+        <button type="button" id="btn-improve-prompt" class="mt-2 px-3 py-1.5 rounded text-sm btn-secondary">Улучшить промпт</button>
+        <!-- Панель улучшенного промпта (появляется после нажатия) -->
+        <div id="improved-prompt-panel" class="mt-3 hidden border-t pt-3 border-divider">
+          <label class="block text-sm uppercase tracking-wide mb-2 input-label">Улучшенный промпт (ИИ)</label>
+          <textarea id="improved-prompt-input" rows="4" class="w-full rounded-lg p-3 text-sm input-area" placeholder="Нажмите «Улучшить промпт»…"></textarea>
+          <div class="mt-3 flex items-center gap-3">
+            <span class="text-sm input-label">Использовать при генерации:</span>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="prompt-source" value="mine" checked class="prompt-radio" />
+              <span class="text-sm">мой промпт</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" name="prompt-source" value="improved" class="prompt-radio" />
+              <span class="text-sm">новый промпт</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Формат изображения (отдельное поле) -->
+      <section class="card p-4">
+        <label class="block text-sm uppercase tracking-wide mb-2 input-label">Формат изображения</label>
+        <select id="format-select" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+          <option value="1024x1024">1:1 (квадрат)</option>
+          <option value="1024x768">4:3 (горизонтальный)</option>
+          <option value="768x1024">3:4 (вертикальный)</option>
+          <option value="1024x576">16:9 (широкий)</option>
+          <option value="576x1024">9:16 (высокий)</option>
+        </select>
+      </section>
+
+      <button type="button" id="btn-generate" class="w-full py-3 rounded-lg font-medium btn-primary transition-colors">Начать генерацию</button>
+
+      <!-- Состояние загрузки -->
+      <section id="loading-section" class="card p-6 text-center hidden">
+        <p class="input-label text-sm mb-4">Генерация изображения…</p>
+        <img src="/static/nyan.gif" alt="" class="loading-gif mb-4" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('hidden');" />
+        <div class="loading-gif-fallback hidden text-4xl mb-4" aria-hidden="true">🐱 ✨</div>
+        <div id="facts-carousel" class="facts-carousel flex items-center gap-3">
+          <button type="button" id="fact-prev" class="facts-nav p-2 rounded" aria-label="Предыдущий факт">←</button>
+          <p id="fact-text" class="flex-1 text-sm min-h-[2.5rem]"></p>
+          <button type="button" id="fact-next" class="facts-nav p-2 rounded" aria-label="Следующий факт">→</button>
+        </div>
+      </section>
+
+      <!-- Результат: превью + Скачать / Сделать заново -->
+      <section id="result-section" class="card p-6 hidden">
+        <p class="input-label text-sm mb-3">Результат</p>
+        <div id="result-preview-wrap" class="mb-4 rounded-lg overflow-hidden result-preview-bg">
+          <img id="result-preview" src="" alt="Результат" class="max-w-full h-auto" />
+        </div>
+        <div class="flex gap-2">
+          <a id="btn-download" href="#" download class="flex-1 py-2 rounded-lg text-center font-medium btn-download">Скачать</a>
+          <button type="button" id="btn-retry" class="flex-1 py-2 rounded-lg font-medium btn-primary">Сделать заново</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Попап истории -->
+    <div id="history-popup" class="popup-overlay hidden" aria-hidden="true">
+      <div class="popup-card">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold page-title">История генераций</h2>
+          <button type="button" id="history-close" class="p-2 rounded input-label hover:opacity-80 popup-close-btn" aria-label="Закрыть">✕</button>
+        </div>
+        <div id="history-list" class="history-list overflow-y-auto space-y-3">
+          <p id="history-empty" class="input-label text-sm">Нет сохранённых генераций</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-12 py-6 text-center text-sm footer-text">
+    <p class="flex flex-wrap items-center justify-center sm:justify-between gap-x-4 gap-y-1 max-w-3xl mx-auto px-3">
+      <span>Powered by FLOW. All rights reserved.</span>
+      <a href="/links" class="footer-link">Ссылки</a>
+    </p>
+    <p class="mt-1"><a href="https://flowcabinet.ru" target="_blank" rel="noopener" class="footer-link">flowcabinet.ru</a></p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

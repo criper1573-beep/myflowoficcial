@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru" id="html-theme" class="theme-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ссылки на изображения — FLOW</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="/static/style.css" rel="stylesheet" />
+</head>
+<body class="page-body min-h-screen">
+  <div id="app" class="container mx-auto px-3 sm:px-6 py-4 sm:py-6 max-w-3xl">
+    <header class="mb-6 space-y-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold page-title">Прямые ссылки на изображения</h1>
+        <p class="text-sm page-subtitle">Загрузите фото и получите ссылку для вставки</p>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <button type="button" id="btn-theme" class="theme-btn px-3 py-1.5 rounded-lg text-sm border" aria-label="Тема">🌓</button>
+        <div id="header-auth" class="flex items-center gap-2">
+          <span id="user-name" class="page-subtitle text-sm hidden"></span>
+          <button type="button" id="btn-logout" class="header-btn px-3 py-1.5 rounded-lg text-sm hidden">Выйти</button>
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <a href="/" class="header-btn px-4 py-2 rounded-lg text-sm">На главную</a>
+      </div>
+    </header>
+
+    <section id="screen-login" class="card p-6 text-center">
+      <p class="mb-4 input-label">Войдите через Telegram, чтобы загружать фото и хранить ссылки в своём аккаунте.</p>
+      <div id="telegram-login-container"></div>
+      <p id="login-no-bot" class="text-amber-500 text-sm mt-4 hidden">Бот для входа не настроен.</p>
+    </section>
+
+    <main id="screen-main" class="hidden space-y-6">
+      <section class="card p-4">
+        <label class="block text-sm uppercase tracking-wide mb-2 input-label">Загрузить фото</label>
+        <form id="upload-form" class="flex flex-wrap items-center gap-3">
+          <input type="file" id="link-file-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" class="text-sm input-area rounded-lg p-2 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0" />
+          <button type="submit" id="btn-upload" class="px-4 py-2 rounded-lg text-sm btn-primary">Загрузить</button>
+        </form>
+        <p class="text-xs input-label mt-2">PNG, JPG, GIF, WebP. До 15 МБ.</p>
+      </section>
+
+      <section class="card p-4">
+        <h2 class="text-sm uppercase tracking-wide input-label mb-3">Загруженные изображения</h2>
+        <div id="links-list" class="space-y-3">
+          <p id="links-empty" class="input-label text-sm">Нет загруженных фото</p>
+        </div>
+        <button type="button" id="btn-show-more" class="mt-3 px-3 py-1.5 rounded text-sm btn-secondary hidden">Показать больше</button>
+      </section>
+    </main>
+
+    <div id="delete-confirm-popup" class="popup-overlay hidden" aria-hidden="true">
+      <div class="popup-card max-w-sm">
+        <p class="input-label mb-4">Удалить изображение с сервера?</p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" id="delete-cancel" class="px-3 py-1.5 rounded text-sm btn-secondary">Отмена</button>
+          <button type="button" id="delete-confirm" class="px-3 py-1.5 rounded text-sm font-medium bg-red-600 text-white hover:bg-red-700">Удалить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-12 py-6 text-center text-sm footer-text">
+    <p>Powered by FLOW. <a href="/" class="footer-link">Генерация изображений</a></p>
+    <p class="mt-1"><a href="https://flowcabinet.ru" target="_blank" rel="noopener" class="footer-link">flowcabinet.ru</a></p>
+  </footer>
+
+  <script src="/static/links.js"></script>
+</body>
+</html>

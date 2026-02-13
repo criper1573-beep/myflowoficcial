@@ -1,0 +1,45 @@
+# MCP server (ContentZavod)
+mcp[cli]>=1.0.0
+
+# Core dependencies
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# YAML configuration
+PyYAML>=6.0.1
+
+# Logging and monitoring
+colorlog>=6.7.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Date and time
+python-dateutil>=2.8.2
+
+# Spambot (NewsBot) dependencies
+python-telegram-bot>=21.0
+feedparser>=6.0
+googletrans==4.0.0-rc1
+
+# Post FLOW (Google Sheets + GRS AI + Telegram)
+gspread>=6.0.0
+google-auth>=2.25.0
+
+# Optional: for async operations
+# aiohttp>=3.9.0
+
+# Optional: for database
+# sqlalchemy>=2.0.0
+
+# Optional: for image processing
+# Pillow>=10.0.0
+
+# Optional: for web interface
+# fastapi>=0.104.0
+# uvicorn>=0.24.0
+
+# Development dependencies
+# pytest>=7.4.0
+# black>=23.11.0
+# flake8>=6.1.0

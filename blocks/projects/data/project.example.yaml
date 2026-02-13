@@ -1,0 +1,28 @@
+# Пример конфигурации проекта для КонтентЗавод
+# Скопируйте в <project_id>.yaml и заполните своими данными
+# Имя файла = project_id (например flowcabinet.yaml)
+
+project_id: my_project
+name: Название проекта
+
+# Telegram (обязательно для спамбота)
+telegram:
+  bot_token: "1234567890:ABCdef..."
+  channel_id: "@your_channel"
+
+# Опционально: переопределения для спамбота
+# Если не указано — используются значения по умолчанию из кода блока
+# spambot:
+#   cta_text: "\n\nВаш призыв к действию\n"
+#   cta_link: "https://yoursite.ru"
+#   hashtag_options: ["#тег1", "#тег2"]
+#   priority_words: ["слово1", "слово2"]
+#   rss_feeds:
+#     - "https://example.com/feed.xml"
+#   rss_feeds_fallback:
+#     - "https://example.com/fallback.xml"
+
+# В будущем: VK, Дзен, Pinterest и т.д. (по одному проекту — свои аккаунты)
+# vk:
+#   access_token: "..."
+#   group_id: "123456789"
