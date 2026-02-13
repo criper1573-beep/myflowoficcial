@@ -258,8 +258,9 @@ def api_server_services():
         unit, label = item[0], item[1]
         description = item[2] if len(item) > 2 else ""
         try:
+            # Без --value, чтобы парсить по ключу (порядок вывода systemctl может отличаться)
             out = subprocess.run(
-                ["systemctl", "show", unit, "-p", "ActiveState", "-p", "SubState", "-p", "MainPID", "--no-pager", "--value"],
+                ["systemctl", "show", unit, "-p", "ActiveState", "-p", "SubState", "-p", "MainPID", "--no-pager"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -283,12 +284,21 @@ def api_server_services():
                     "pid": None,
                 })
                 continue
-            lines = [(ln or "").strip() for ln in (out.stdout or "").strip().split("\n")]
-            raw_state = (lines[0] if len(lines) > 0 else "unknown").lower()
-            # active и reloading = работающий сервис (зелёная обводка на дашборде)
-            active_state = "active" if raw_state in ("active", "reloading") else raw_state
-            sub_state = lines[1] if len(lines) > 1 else ""
-            pid = (lines[2] if len(lines) > 2 else "").strip() or None
+            # Парсим KEY=VALUE (порядок строк не фиксирован на разных системах)
+            props = {}
+            for line in (out.stdout or "").strip().split("\n"):
+                line = (line or "").strip()
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    props[k.strip()] = (v or "").strip()
+            raw_active = (props.get("ActiveState") or "unknown").lower()
+            sub_state = props.get("SubState") or ""
+            pid = (props.get("MainPID") or "").strip() or None
+            if pid == "0":
+                pid = None
+            # Зелёная подсветка: active, reloading или sub_state=running
+            is_running = raw_active in ("active", "reloading") or (props.get("SubState") or "").lower() == "running"
+            active_state = "active" if is_running else raw_active
             result.append({
                 "unit": unit,
                 "label": label,
