@@ -9,7 +9,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 from urllib.error import URLError, HTTPError
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -221,7 +221,7 @@ def _fetch_remote_server_services() -> dict | None:
         return None
     base = url.rstrip("/")
     try:
-        req = Request(base + "/api/server-services", headers={"Accept": "application/json"})
+        req = UrlRequest(base + "/api/server-services", headers={"Accept": "application/json"})
         with urlopen(req, timeout=10) as r:
             return json.loads(r.read().decode())
     except (URLError, HTTPError, ValueError, OSError) as e:
@@ -262,7 +262,7 @@ def api_server_services():
         health_url = os.getenv("QUICKPACK_URL", "").strip() if unit == "quickpack" else None
         if health_url:
             try:
-                req = Request(health_url, headers={"User-Agent": "ContentZavod-HealthCheck/1.0"})
+                req = UrlRequest(health_url, headers={"User-Agent": "ContentZavod-HealthCheck/1.0"})
                 with urlopen(req, timeout=8) as r:
                     code = r.getcode()
                 result.append({
