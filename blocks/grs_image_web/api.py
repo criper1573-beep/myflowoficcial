@@ -75,6 +75,16 @@ def _save_image_from_result(result: dict) -> tuple[str, Path] | None:
     return filename, path
 
 
+REQUIRE_AUTH = os.getenv("GRS_IMAGE_WEB_REQUIRE_AUTH", "true").strip().lower() in ("true", "1", "yes")
+BOT_USERNAME = (os.getenv("GRS_IMAGE_WEB_BOT_USERNAME") or "").strip() or None
+
+
+@app.get("/api/config")
+def api_config():
+    """Конфиг для фронта: нужна ли авторизация и имя бота для виджета «Войти через Telegram»."""
+    return {"require_auth": REQUIRE_AUTH, "bot_username": BOT_USERNAME}
+
+
 @app.post("/api/generate")
 def api_generate(body: GenerateRequest):
     """
