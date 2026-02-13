@@ -313,6 +313,8 @@
         var stateText = (rawState === 'running') ? 'работает' : rawState;
         var pid = s.pid && s.pid !== '0' ? 'PID ' + s.pid : '';
         var desc = (s.description || '').trim();
+        var url = (s.url && String(s.url).trim()) || '';
+        var btnHtml = url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block px-3 py-1.5 rounded text-sm font-medium bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors">Открыть сайт</a>' : '';
         return (
           '<div class="rounded-lg p-4 border ' +
           bg +
@@ -330,6 +332,7 @@
           stateText +
           (pid ? ' · ' + pid : '') +
           '</div>' +
+          (btnHtml ? '<div class="mt-2">' + btnHtml + '</div>' : '') +
           '<div class="text-xs text-gray-500 mt-1">' +
           s.unit +
           '</div>' +

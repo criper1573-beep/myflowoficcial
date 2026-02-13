@@ -214,6 +214,18 @@ SERVER_SERVICES = [
 ]
 
 
+def _service_public_url(unit: str) -> str | None:
+    """Публичный URL сервиса (для кнопки «Открыть сайт» в плашке)."""
+    u = (unit or "").strip()
+    if u == "analytics-dashboard":
+        return (os.getenv("DASHBOARD_PUBLIC_URL") or "").strip() or None
+    if u == "grs-image-web":
+        return (os.getenv("GRS_IMAGE_WEB_PUBLIC_URL") or "https://flowimage.ru").strip() or None
+    if u == "quickpack":
+        return (os.getenv("QUICKPACK_URL") or "").strip() or None
+    return None
+
+
 def _fetch_remote_server_services() -> dict | None:
     """Запросить статус сервисов с удалённого сервера (для локального дашборда)."""
     url = os.environ.get("ANALYTICS_SERVER_SERVICES_URL", "").strip()
@@ -252,6 +264,7 @@ def api_server_services():
                 "active_state": "n/a",
                 "sub_state": "Локальный режим — статус только на сервере",
                 "pid": None,
+                "url": _service_public_url(unit),
             })
         return {"services": result_local, "note": "Статус сервисов отображается только при запуске на Linux-сервере."}
     result = []
@@ -272,6 +285,7 @@ def api_server_services():
                     "active_state": "active" if code == 200 else "inactive",
                     "sub_state": f"HTTP {code}" if code != 200 else "работает",
                     "pid": None,
+                    "url": _service_public_url(unit),
                 })
             except (URLError, HTTPError, OSError) as e:
                 logger.debug("Quickpack health check %s: %s", health_url, e)
@@ -282,6 +296,7 @@ def api_server_services():
                     "active_state": "inactive",
                     "sub_state": str(e)[:80] if e else "нет ответа",
                     "pid": None,
+                    "url": _service_public_url(unit),
                 })
             continue
         try:
@@ -309,6 +324,7 @@ def api_server_services():
                     "active_state": "inactive",
                     "sub_state": sub_state,
                     "pid": None,
+                    "url": _service_public_url(unit),
                 })
                 continue
             # Парсим KEY=VALUE (порядок строк не фиксирован на разных системах)
@@ -333,10 +349,11 @@ def api_server_services():
                 "active_state": active_state,
                 "sub_state": sub_state,
                 "pid": pid,
+                "url": _service_public_url(unit),
             })
         except Exception as e:
             logger.warning("systemctl show %s: %s", unit, e)
-            result.append({"unit": unit, "label": label, "description": description, "active_state": "error", "sub_state": str(e), "pid": None})
+            result.append({"unit": unit, "label": label, "description": description, "active_state": "error", "sub_state": str(e), "pid": None, "url": _service_public_url(unit)})
     return {"services": result}
 
 
