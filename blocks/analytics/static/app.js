@@ -304,10 +304,10 @@
     }
     wrap.innerHTML = toShow
       .map(function (s) {
-        var isActive = s.active_state === 'active';
+        var isActive = (s.active_state && String(s.active_state).toLowerCase()) === 'active';
         var isLocal = s.active_state === 'n/a';
-        var bg = isActive ? 'bg-gray-800 border-green-800' : (isLocal ? 'bg-gray-800 border-gray-600' : 'bg-gray-800 border-red-900');
-        var dot = isActive ? 'bg-green-500' : (isLocal ? 'bg-gray-500' : 'bg-red-500');
+        var bg = isActive ? 'bg-gray-800 border-2 border-green-500' : (isLocal ? 'bg-gray-800 border border-gray-600' : 'bg-gray-800 border-2 border-red-500');
+        var dot = isActive ? 'bg-green-500 shadow-sm shadow-green-500/50' : (isLocal ? 'bg-gray-500' : 'bg-red-500');
         var stateText = isActive ? (s.sub_state || 'работает') : (isLocal ? (s.sub_state || 'локальный режим') : (s.active_state || 'остановлен'));
         var pid = s.pid && s.pid !== '0' ? 'PID ' + s.pid : '';
         var desc = (s.description || '').trim();

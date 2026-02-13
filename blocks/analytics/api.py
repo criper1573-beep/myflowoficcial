@@ -265,10 +265,26 @@ def api_server_services():
                 timeout=5,
             )
             if out.returncode != 0:
-                result.append({"unit": unit, "label": label, "description": description, "active_state": "unknown", "sub_state": "", "pid": ""})
+                # Юнит не найден или ошибка — проверяем, есть ли файл юнита на сервере
+                check = subprocess.run(
+                    ["systemctl", "list-unit-files", unit + ".service", "--no-pager", "--no-legend"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                unit_exists = check.returncode == 0
+                sub_state = "не установлен" if not unit_exists else "ошибка"
+                result.append({
+                    "unit": unit,
+                    "label": label,
+                    "description": description,
+                    "active_state": "inactive",
+                    "sub_state": sub_state,
+                    "pid": None,
+                })
                 continue
             lines = (out.stdout or "").strip().split("\n")
-            active_state = lines[0] if len(lines) > 0 else "unknown"
+            active_state = (lines[0] if len(lines) > 0 else "unknown").strip().lower()
             sub_state = lines[1] if len(lines) > 1 else ""
             pid = lines[2] if len(lines) > 2 else ""
             result.append({
