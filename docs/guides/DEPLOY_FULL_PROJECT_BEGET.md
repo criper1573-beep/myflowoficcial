@@ -267,6 +267,7 @@ sudo apt-get install -y nginx
 
 - **Свой домен** (рекомендуется): если есть свой домен (не `*.beget.tech`), в панели Beget (раздел домены/DNS) создай A-запись для поддомена (например `analitics.твой-домен.ru`) → IP твоего VPS. Дальше настраиваешь Nginx и SSL по шагам ниже.
 - **Доступ по IP**: дашборд можно открывать по адресу `http://IP_ТВОЕГО_VPS` (например `http://85.198.66.62`). В репозитории есть пример конфига: `docs/scripts/deploy_beget/nginx-dashboard-by-ip.conf`. На сервере: положить его в `/etc/nginx/sites-available/dashboard-by-ip`, включить (`ln -sf ... sites-enabled/`), отключить `default` и `analitics` (если были), перезагрузить Nginx. HTTPS по IP оформить нельзя — только HTTP.
+- **Домен flowimage.store**: пошаговая инструкция — `docs/guides/DEPLOY_DASHBOARD_FLOWIMAGE_STORE.md` (Nginx + SSL, `DASHBOARD_PUBLIC_URL=https://flowimage.store`).
 
 В `.env` на сервере укажи `DASHBOARD_PUBLIC_URL` соответственно: `https://твой-домен` или `http://IP_VPS`.
 

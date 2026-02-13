@@ -7,3 +7,6 @@
   env.server.example  — пример .env для сервера (скопировать в .env и заполнить)
   nginx.conf.example  — пример конфига Nginx (подставить домен и путь)
   analytics-dashboard.service.example — пример юнита systemd (подставить пользователя и путь)
+  nginx-flowimage-store.conf  — дашборд на flowimage.store (порт 8050)
+  get-ssl-flowimage-store.sh  — SSL для flowimage.store (certbot)
+  Домен flowimage.store: docs/guides/DEPLOY_DASHBOARD_FLOWIMAGE_STORE.md
