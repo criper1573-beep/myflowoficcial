@@ -4,6 +4,27 @@
 
 **Предполагается:** VPS уже настроен (проект в `/root/contentzavod`, сервис `analytics-dashboard` запущен), дашборд открывается по IP `http://85.198.66.62`.
 
+**Важно:** Код на сервере должен быть из репозитория **https://github.com/criper1573-beep/myflowoficcial** (ветка `main`). Если после `git push` с компа на flowimage.store не появляются изменения (фавикон, зелёные сервисы и т.д.) — на сервере, скорее всего, другой remote или старый клон. Выполни один раз на сервере:
+```bash
+cd /root/contentzavod
+bash docs/scripts/deploy_beget/fix_server_repo_and_pull.sh
+```
+Скрипт привяжет `origin` к myflowoficcial, сделает `git pull` и перезапустит дашборд.
+
+**Если на сервере проект был развёрнут из zip (нет .git)** — один раз выполни по SSH:
+```bash
+cd /root/contentzavod
+cp .env .env.bak
+git init
+git remote add origin https://github.com/criper1573-beep/myflowoficcial.git
+git fetch origin main
+git reset --hard FETCH_HEAD
+git branch -M main
+sudo systemctl restart analytics-dashboard
+sudo systemctl restart grs-image-web
+```
+После этого код в каталоге будет из GitHub; дальнейшие обновления — через `git pull` и перезапуск сервисов.
+
 ---
 
 ## 1. DNS

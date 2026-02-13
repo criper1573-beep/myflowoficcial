@@ -304,7 +304,8 @@
     }
     wrap.innerHTML = toShow
       .map(function (s) {
-        var isActive = (s.active_state && String(s.active_state).toLowerCase()) === 'active';
+        var state = (s.active_state && String(s.active_state).toLowerCase()) || '';
+        var isActive = state === 'active' || state === 'running';
         var isLocal = s.active_state === 'n/a';
         var bg = isActive ? 'bg-gray-800 border-2 border-green-500' : (isLocal ? 'bg-gray-800 border border-gray-600' : 'bg-gray-800 border-2 border-red-500');
         var dot = isActive ? 'bg-green-500 shadow-sm shadow-green-500/50' : (isLocal ? 'bg-gray-500' : 'bg-red-500');

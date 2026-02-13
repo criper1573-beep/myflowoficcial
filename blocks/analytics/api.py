@@ -283,17 +283,19 @@ def api_server_services():
                     "pid": None,
                 })
                 continue
-            lines = (out.stdout or "").strip().split("\n")
-            active_state = (lines[0] if len(lines) > 0 else "unknown").strip().lower()
+            lines = [(ln or "").strip() for ln in (out.stdout or "").strip().split("\n")]
+            raw_state = (lines[0] if len(lines) > 0 else "unknown").lower()
+            # active и reloading = работающий сервис (зелёная обводка на дашборде)
+            active_state = "active" if raw_state in ("active", "reloading") else raw_state
             sub_state = lines[1] if len(lines) > 1 else ""
-            pid = lines[2] if len(lines) > 2 else ""
+            pid = (lines[2] if len(lines) > 2 else "").strip() or None
             result.append({
                 "unit": unit,
                 "label": label,
                 "description": description,
                 "active_state": active_state,
                 "sub_state": sub_state,
-                "pid": pid or None,
+                "pid": pid,
             })
         except Exception as e:
             logger.warning("systemctl show %s: %s", unit, e)

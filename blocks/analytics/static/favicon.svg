@@ -6,7 +6,6 @@
       <stop offset="100%" style="stop-color:#1e3a5f"/>
     </linearGradient>
   </defs>
-  <!-- C:20 F: =>6:0 + 25@E=OO 8 A@54=OO ?5@5:;048=K (AB8;L ;>3>B8?0 FLOW) -->
   <g fill="url(#fFill)" stroke="#6bb3e7" stroke-width="0.8" stroke-linejoin="miter">
     <rect x="5" y="4" width="6" height="24" rx="0"/>
     <rect x="5" y="4" width="18" height="5" rx="0"/>
