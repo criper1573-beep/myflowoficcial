@@ -1,0 +1,22 @@
+# Юнит systemd для Telegram-бота дашборда аналитики (кнопка «Дашборд», /stats, /analytics).
+# Подставь: ТВОЙ_ПОЛЬЗОВАТЕЛЬ и /путь/к/проекту (например root и /root/contentzavod)
+# В .env на сервере обязательны: TELEGRAM_BOT_TOKEN, DASHBOARD_PUBLIC_URL (например https://flowimage.store)
+# Разместить: sudo nano /etc/systemd/system/analytics-telegram-bot.service
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable analytics-telegram-bot && sudo systemctl start analytics-telegram-bot
+
+[Unit]
+Description=КонтентЗавод — Telegram-бот дашборда аналитики
+After=network.target
+
+[Service]
+Type=simple
+User=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+Group=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+WorkingDirectory=/путь/к/проекту
+Environment="PYTHONPATH=/путь/к/проекту"
+ExecStart=/путь/к/проекту/venv/bin/python -m blocks.analytics.telegram_bot
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

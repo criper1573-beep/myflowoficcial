@@ -83,3 +83,54 @@ python -m blocks.analytics
 ```bash
 python -m blocks.analytics.seed_test_data
 ```
+
+---
+
+## Почему Telegram-бот дашборда не работает
+
+Если сервис «Telegram-бот дашборда» на дашборде показывается красным или постоянно перезапускается, проверь по шагам.
+
+### 1. Переменные в `.env` на сервере
+
+В каталоге проекта на сервере (например `/root/contentzavod`) в файле `.env` должны быть:
+
+| Переменная | Назначение |
+|------------|------------|
+| **TELEGRAM_BOT_TOKEN** | Токен бота от @BotFather. Без него бот сразу завершается с ошибкой. |
+| **DASHBOARD_PUBLIC_URL** | HTTPS-адрес дашборда, например `https://flowimage.store`. Нужен для кнопки «Дашборд» и команды /stats. |
+
+Проверка: на сервере `grep -E 'TELEGRAM_BOT_TOKEN|DASHBOARD_PUBLIC_URL' /root/contentzavod/.env` — обе строки должны быть заданы (без решётки в начале).
+
+### 2. Юнит systemd
+
+Должен существовать файл `/etc/systemd/system/analytics-telegram-bot.service`. Пример — в репозитории: `docs/scripts/deploy_beget/analytics-telegram-bot.service.example`. В нём подставь пользователя и путь к проекту (как в юните дашборда), затем:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable analytics-telegram-bot
+sudo systemctl start analytics-telegram-bot
+```
+
+### 3. Зависимости в venv
+
+Бот использует библиотеку `python-telegram-bot`. На сервере в виртуальном окружении проекта:
+
+```bash
+cd /root/contentzavod
+./venv/bin/pip install python-telegram-bot>=21.0
+```
+
+(Если ставишь зависимости из `docs/config/requirements.txt`, эта библиотека там уже есть.)
+
+### 4. Логи сервиса
+
+Чтобы увидеть причину падения или ошибку при старте:
+
+```bash
+sudo journalctl -u analytics-telegram-bot -n 50 --no-pager
+```
+
+Типичные сообщения:
+
+- **«TELEGRAM_BOT_TOKEN не задан в .env»** — добавь в `.env` на сервере строку `TELEGRAM_BOT_TOKEN=...` (токен от @BotFather).
+- **«Дашборд недоступен»** (в ответ на /stats в Telegram) — задай в `.env` на сервере `DASHBOARD_PUBLIC_URL=https://flowimage.store` (или твой URL дашборда) и перезапусти сервис: `sudo systemctl restart analytics-telegram-bot`.

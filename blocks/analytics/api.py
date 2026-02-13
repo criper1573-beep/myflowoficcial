@@ -258,6 +258,32 @@ def api_server_services():
     for item in SERVER_SERVICES:
         unit, label = item[0], item[1]
         description = item[2] if len(item) > 2 else ""
+        # Quickpack: если задан QUICKPACK_URL — проверяем сайт по HTTP (сайт может быть без systemd-юнита)
+        health_url = os.getenv("QUICKPACK_URL", "").strip() if unit == "quickpack" else None
+        if health_url:
+            try:
+                req = Request(health_url, headers={"User-Agent": "ContentZavod-HealthCheck/1.0"})
+                with urlopen(req, timeout=8) as r:
+                    code = r.getcode()
+                result.append({
+                    "unit": unit,
+                    "label": label,
+                    "description": description,
+                    "active_state": "active" if code == 200 else "inactive",
+                    "sub_state": f"HTTP {code}" if code != 200 else "работает",
+                    "pid": None,
+                })
+            except (URLError, HTTPError, OSError) as e:
+                logger.debug("Quickpack health check %s: %s", health_url, e)
+                result.append({
+                    "unit": unit,
+                    "label": label,
+                    "description": description,
+                    "active_state": "inactive",
+                    "sub_state": str(e)[:80] if e else "нет ответа",
+                    "pid": None,
+                })
+            continue
         try:
             # Без --value, чтобы парсить по ключу (порядок вывода systemctl может отличаться)
             out = subprocess.run(
