@@ -7,7 +7,7 @@ import re
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,6 +29,17 @@ except ImportError:
     pass
 
 app = FastAPI(title="GRS Image Generator", version="1.0.0")
+
+# Авторизация через Telegram (cookie-сессии)
+from .auth import (
+    verify_telegram_login,
+    make_session_token,
+    verify_session_token,
+    get_generated_dir,
+)
+
+COOKIE_NAME = "grs_image_web_session"
+COOKIE_MAX_AGE = 30 * 24 * 3600
 
 
 class GenerateRequest(BaseModel):
@@ -83,6 +94,95 @@ BOT_USERNAME = (os.getenv("GRS_IMAGE_WEB_BOT_USERNAME") or "").strip() or None
 def api_config():
     """Конфиг для фронта: нужна ли авторизация и имя бота для виджета «Войти через Telegram»."""
     return {"require_auth": REQUIRE_AUTH, "bot_username": BOT_USERNAME}
+
+
+@app.post("/api/auth/telegram")
+async def api_auth_telegram(request: Request, response: Response):
+    """Обработка данных от Telegram Login Widget: проверка подписи и установка cookie-сессии."""
+    if not REQUIRE_AUTH:
+        raise HTTPException(status_code=400, detail="Authorization is disabled")
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request body")
+    user = verify_telegram_login(data)
+    if not user or not user.get("id"):
+        raise HTTPException(status_code=401, detail="Invalid Telegram login")
+    try:
+        tid = int(user.get("id"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Telegram id")
+    token = make_session_token(tid)
+    # Создаём папку для пользователя
+    try:
+        get_generated_dir(BLOCK_DIR, tid)
+    except Exception:
+        logger.exception("Failed to create generated dir for user %s", tid)
+    response.set_cookie(COOKIE_NAME, token, httponly=True, max_age=COOKIE_MAX_AGE, path="/")
+    return {"authenticated": True}
+
+
+@app.get("/api/me")
+def api_me(request: Request):
+    """Проверка cookie-сессии и возврат информации о текущем пользователе."""
+    token = request.cookies.get(COOKIE_NAME)
+    tid = verify_session_token(token) if token else None
+    if not tid:
+        return {"authenticated": False}
+    return {"authenticated": True, "user": {"id": tid}}
+
+
+@app.post("/api/logout")
+def api_logout(response: Response):
+    response.delete_cookie(COOKIE_NAME, path="/")
+    return {"ok": True}
+@app.post("/api/improve-prompt")
+def api_improve_prompt(body: dict):
+    """
+    Улучшение промта через GRS AI.
+    """
+    if not os.getenv("GRS_AI_API_KEY"):
+        raise HTTPException(status_code=503, detail="GRS_AI_API_KEY не настроен")
+    
+    prompt = body.get("prompt", "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Промпт не может быть пустым")
+    
+    try:
+        client = _get_grs_client()
+        # Используем текстовую модель для улучшения промта
+        improved_prompt = f"Улучши этот промпт для генерации изображения, сделай его более детальным и описательным. Оставь смысл, но добавь художественные детали. Верни только улучшенный промпт без JSON и других форматирований. Промпт: {prompt}"
+        
+        response = client.chat(
+            messages=[
+                {"role": "system", "content": "Ты эксперт по созданию промптов для генерации изображений. Улучшай промпты, делая их более детальными и художественными. Возвращай только текст улучшенного промпта, без JSON и других форматирований."},
+                {"role": "user", "content": improved_prompt}
+            ],
+            model="gpt-4o-mini",
+            max_tokens=500,
+            temperature=0.7
+        )
+        
+        improved = response.strip() if response else prompt
+        
+        # Если ответ похож на JSON, попробуем извлечь промпт
+        if improved.startswith('{') and '"prompt"' in improved:
+            try:
+                import json
+                parsed = json.loads(improved)
+                improved = parsed.get('prompt', prompt)
+            except:
+                pass  # оставляем как есть
+        
+        if not improved:
+            improved = prompt  # fallback к оригиналу
+            
+        return {"improved": improved}
+        
+    except Exception as e:
+        logger.exception("GRS improve_prompt: %s", e)
+        # В случае ошибки возвращаем оригинальный промпт
+        return {"improved": prompt}
 
 
 @app.post("/api/generate")
