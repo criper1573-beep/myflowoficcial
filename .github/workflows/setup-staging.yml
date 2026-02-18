@@ -5,6 +5,11 @@ name: Setup Staging
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/scripts/deploy_beget/setup_staging_all.sh'
+      - '.github/workflows/setup-staging.yml'
 
 jobs:
   setup:
