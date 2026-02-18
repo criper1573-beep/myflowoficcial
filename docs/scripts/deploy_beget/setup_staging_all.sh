@@ -31,7 +31,9 @@ fi
 echo "[2/6] venv и зависимости..."
 cd "$PROJECT_DIR_STAGING"
 [ ! -d venv ] && python3 -m venv venv
-./venv/bin/pip install -q -r docs/config/requirements.txt
+./venv/bin/pip install -q --upgrade pip
+./venv/bin/pip install -q --use-deprecated=legacy-resolver -r docs/config/requirements.txt || \
+  ./venv/bin/pip install -q requests python-dotenv PyYAML colorlog pydantic python-dateutil fastapi "uvicorn[standard]" python-multipart
 [ -f blocks/grs_image_web/requirements.txt ] && ./venv/bin/pip install -q -r blocks/grs_image_web/requirements.txt
 [ -f blocks/analytics/requirements.txt ] && ./venv/bin/pip install -q -r blocks/analytics/requirements.txt
 
