@@ -146,6 +146,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
         try:
             self._deploy(project_dir, branch, services, env_name)
             self._send_response(200, f"Deployment {env_name} successful")
+            # После успешного main: автобутстрап staging (если не настроен)
+            if ref == 'refs/heads/main':
+                self._bootstrap_staging_if_needed()
         except Exception as e:
             logger.error(f"Deployment error: {e}")
             self._send_response(500, f"Deployment failed: {str(e)}")
@@ -213,6 +216,31 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 pass  # сервис может быть не установлен
 
         logger.info("Деплой [%s] завершен успешно", env_name)
+
+    def _bootstrap_staging_if_needed(self):
+        """Если staging не настроен — запустить setup_staging_all.sh (один раз)."""
+        staging_dir = Path(PROJECT_DIR_STAGING or '/root/contentzavod-staging')
+        if staging_dir.exists():
+            return
+        setup_script = PROJECT_DIR / 'docs' / 'scripts' / 'deploy_beget' / 'setup_staging_all.sh'
+        if not setup_script.exists():
+            logger.info("Staging setup script не найден, пропуск")
+            return
+        logger.info("Staging не найден, запускаем bootstrap: %s", setup_script)
+        try:
+            result = subprocess.run(
+                ['sudo', 'bash', str(setup_script), str(PROJECT_DIR), str(staging_dir)],
+                cwd=str(PROJECT_DIR),
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode == 0:
+                logger.info("Staging bootstrap успешен")
+            else:
+                logger.warning("Staging bootstrap: %s", result.stderr or result.stdout)
+        except Exception as e:
+            logger.warning("Staging bootstrap error: %s", e)
 
     def log_message(self, format, *args):
         """Переопределяем логирование для использования нашего logger."""
