@@ -1,6 +1,31 @@
 # Changelog
 
-Все значимые изменения в проекте ContentZavod документируются здесь.
+Все значимые изменения в проекте ContentZavod документируются здесь.  
+Текущая версия: **2.1.0** (см. docs/config/VERSION). Workflow: [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md)
+
+---
+
+## [v2.1.0] - 2026-02-18 - Dev-ветка и история патчей
+
+### ✅ Добавлено
+
+- **Dev-ветка с деплоем на поддомен**
+  - Ветка `dev` — тестирование на dev.flowimage.ru до merge в main
+  - `webhook_server.py`: push в main → production, push в dev → staging (при настроенном PROJECT_DIR_STAGING)
+  - Гайд [GIT_BRANCHING.md](GIT_BRANCHING.md) — workflow веток
+  - Гайд [DEPLOY_STAGING.md](DEPLOY_STAGING.md) — настройка staging
+- **Версионирование и история патчей**
+  - `docs/config/VERSION` — текущая версия (2.1.0)
+  - [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md) — как нумеровать релизы и вести CHANGELOG
+  - Формат записей с версиями: `[vX.Y.Z] - YYYY-MM-DD`
+- **Deploy-скрипты**
+  - `grs-image-web-staging.service.example` — systemd unit для staging (порт 8766)
+  - `nginx-flowimage-dev.conf.example` — Nginx для dev.flowimage.ru
+
+### 📝 Изменено
+
+- **webhook_server.py** — разбор `ref` в payload: main → prod, dev → staging
+- **DEPLOY_WEBHOOK.md** — переменная PROJECT_DIR_STAGING, описание поведения по веткам
 
 ---
 
@@ -535,7 +560,7 @@
 ## Формат записей
 
 ```markdown
-## [YYYY-MM-DD] - Название релиза
+## [vX.Y.Z] - YYYY-MM-DD - Название релиза
 
 ### ✅ Добавлено
 - Новые функции
@@ -552,3 +577,5 @@
 ### 🔒 Безопасность
 - Изменения, связанные с безопасностью
 ```
+
+Перед релизом обновить `docs/config/VERSION`. Подробнее: [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md)

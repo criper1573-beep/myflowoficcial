@@ -21,6 +21,10 @@
 | [KEYS_AND_TOKENS.md](KEYS_AND_TOKENS.md) | 🔑 Ключи и токены (где получить и как хранить) |
 | [PROJECT_STATUS.md](PROJECT_STATUS.md) | 📊 Текущий статус проекта |
 | [CHANGELOG.md](CHANGELOG.md) | 📝 История изменений |
+| [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md) | 📝 Версии и workflow релизов |
+| [GIT_BRANCHING.md](GIT_BRANCHING.md) | 🌿 Ветки main, dev, feature |
+| [DEPLOY_WEBHOOK.md](DEPLOY_WEBHOOK.md) | 🚀 Деплой по вебхуку |
+| [DEPLOY_STAGING.md](DEPLOY_STAGING.md) | 🧪 Staging (dev на поддомене) |
 | [BACKUP_QUICK_START.md](BACKUP_QUICK_START.md) | 💾 Быстрый старт с системой бекапов |
 | [BACKUP_SYSTEM.md](BACKUP_SYSTEM.md) | 💾 Полная документация системы бекапов |
 | [МУЛЬТИПРОЕКТНОСТЬ.md](МУЛЬТИПРОЕКТНОСТЬ.md) | 📁 Один завод — несколько проектов |

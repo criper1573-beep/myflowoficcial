@@ -1,0 +1,22 @@
+# Юнит systemd для GRS Image Web — STAGING (ветка dev, поддомен dev.flowimage.ru).
+# Подставить: __PROJECT_DIR_STAGING__ (например /root/contentzavod-staging)
+# Порт 8766 — отличный от prod (8765).
+# Разместить: sudo cp ... /etc/systemd/system/grs-image-web-staging.service
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable grs-image-web-staging && sudo systemctl start grs-image-web-staging
+
+[Unit]
+Description=КонтентЗавод — GRS Image Web STAGING (dev.flowimage.ru)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=__PROJECT_DIR_STAGING__
+Environment="PYTHONPATH=__PROJECT_DIR_STAGING__"
+ExecStart=__PROJECT_DIR_STAGING__/venv/bin/uvicorn blocks.grs_image_web.api:app --host 127.0.0.1 --port 8766
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
