@@ -1,0 +1,52 @@
+# Секреты и локальная конфигурация
+.env
+.env.*
+.env.local
+config/*.local.yaml
+*.secret.*
+*_storage_state.json
+zen_storage_state.json
+.browser_profile_capture/
+.browser_profile_verify/
+docs/scripts/deploy_beget/grs-image-web.service
+
+# Виртуальные окружения и кэш Python
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Хранилище и логи
+storage/
+*.log
+blocks/spambot/newsbot_posted.json
+blocks/grs_image_web/users.json
+
+# Бекапы
+backups/
+backups/metadata.json
+docs/backups/backups/
+docs/backups/backups/backup_*/
+docs/backups/backups/metadata.json
+
+# Репозиторий и IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Memory Bank и Cursor (не нужны в образе)
+memory-bank/
+.cursor/
+
+# Docker (не копировать в контекст образа)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+.docker/

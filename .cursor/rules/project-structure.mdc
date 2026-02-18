@@ -21,6 +21,8 @@ alwaysApply: true
 
 - `README.md` — главная страница проекта
 - `.gitignore` — игнор репозитория
+- `memory-bank/` — контекст и задачи Cursor Memory Bank (команды /van, /plan, /build и др.); создаётся и обновляется workflow, не дублировать в docs/
+- `Dockerfile`, `.dockerignore`, `docker-compose.yml` — инфраструктура Docker (стандартное размещение в корне)
 
 Точка входа NewsBot — внутри блока: `python -m blocks.spambot` (или `blocks\spambot\start.bat`). В корне лаунчеров не создавать.
 

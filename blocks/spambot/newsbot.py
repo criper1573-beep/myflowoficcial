@@ -259,21 +259,21 @@ class NewsBot:
         return text.strip()
     
     def _get_translator(self):
-        """Ленивая инициализация переводчика: googletrans или deep_translator."""
+        """Ленивая инициализация переводчика: deep_translator или googletrans (deep_translator без конфликта httpx)."""
         if self._translator is not None:
             return self._translator
-        try:
-            from googletrans import Translator
-            self._translator = ("googletrans", Translator())
-            return self._translator
-        except Exception:
-            pass
         try:
             from deep_translator import GoogleTranslator
             self._translator = ("deep_translator", GoogleTranslator(source="auto", target="ru"))
             return self._translator
+        except Exception:
+            pass
+        try:
+            from googletrans import Translator
+            self._translator = ("googletrans", Translator())
+            return self._translator
         except Exception as e:
-            logger.warning("Нет переводчика (googletrans/deep_translator): %s", e)
+            logger.warning("Нет переводчика (deep_translator/googletrans): %s", e)
             self._translator = ("none", None)
             return self._translator
 

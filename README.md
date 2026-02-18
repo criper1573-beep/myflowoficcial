@@ -45,6 +45,10 @@ blocks\spambot\start.bat
 
 **Мультипроектность:** один завод — несколько проектов; у каждого свои аккаунты, API ИИ общий. Подробнее: **docs/guides/MULTIPROJECT.md**
 
+### Docker
+
+Сборка и запуск блоков в контейнере: **docs/guides/DOCKER.md**. Кратко: `docker build -t contentzavod .` и `docker run --env-file .env contentzavod python -m blocks.spambot --project flowcabinet`.
+
 ---
 
 ## Документация

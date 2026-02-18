@@ -1,0 +1,29 @@
+# КонтентЗавод — пример запуска блоков через Docker Compose
+# Перед запуском: создайте .env из docs/config/.env.example и заполните ключи.
+# Запуск: docker compose up -d spambot   или   docker compose up -d post_flow
+
+services:
+  spambot:
+    build: .
+    image: contentzavod:latest
+    env_file: .env
+    restart: unless-stopped
+    command: python -m blocks.spambot --project flowcabinet
+    # Конфиги проектов с хоста (чтобы не зашивать секреты в образ)
+    volumes:
+      - ./blocks/projects/data:/app/blocks/projects/data:ro
+
+  post_flow:
+    build: .
+    image: contentzavod:latest
+    env_file: .env
+    restart: unless-stopped
+    command: python -m blocks.post_flow.bot
+    volumes:
+      - ./blocks/projects/data:/app/blocks/projects/data:ro
+
+  # Добавить другие блоки по аналогии, например:
+  # mcp_server:
+  #   image: contentzavod:latest
+  #   env_file: .env
+  #   command: python -m blocks.mcp_server

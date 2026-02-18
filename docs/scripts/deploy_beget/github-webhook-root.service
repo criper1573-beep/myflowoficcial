@@ -1,0 +1,20 @@
+[Unit]
+Description=GitHub Webhook Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/contentzavod
+Environment=PYTHONPATH=/root/contentzavod
+Environment=GITHUB_WEBHOOK_SECRET=SET_VIA_systemctl_edit
+ExecStart=/root/contentzavod/venv/bin/python /root/contentzavod/webhook_server.py
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=github-webhook
+
+[Install]
+WantedBy=multi-user.target
