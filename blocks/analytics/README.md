@@ -66,6 +66,10 @@ python -m blocks.analytics.telegram_bot
 - Чтобы видеть **локальные** публикации — запускайте дашборд **локально**: `python -m blocks.analytics` и откройте http://localhost:8050.
 - Чтобы в дашборде на сервере были видны запуски — автопостинг должен выполняться **на том же сервере** (cron, systemd и т.д.), тогда и дашборд, и скрипты используют одну и ту же БД.
 
+**Раздел Generation (картинки и ссылки с flowimage.ru):** данные берутся с локальной ФС — папки `blocks/grs_image_web/generated` и `blocks/grs_image_web/uploaded`. Если дашборд и grs_image_web на одном сервере в одном репо — пути по умолчанию подходят. Если дашборд развёрнут из другого каталога/репо — задай в `.env` абсолютные пути:
+- `GRS_IMAGE_WEB_DIR` — корень блока grs_image_web (например `/root/contentzavod/blocks/grs_image_web`);
+- или по отдельности: `GRS_IMAGE_WEB_GENERATED_DIR`, `GRS_IMAGE_WEB_UPLOADED_DIR`. Подробнее: `docs/guides/DEPLOY_DASHBOARD_FLOWIMAGE_STORE.md`.
+
 ---
 
 ## Только дашборд на компе (без Telegram)

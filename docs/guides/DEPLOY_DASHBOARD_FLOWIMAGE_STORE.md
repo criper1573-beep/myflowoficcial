@@ -89,6 +89,38 @@ DASHBOARD_PUBLIC_URL=https://flowimage.store
 sudo systemctl restart analytics-dashboard
 ```
 
+### Если на дашборде пустой раздел Generation (картинки/ссылки с flowimage.ru)
+
+Дашборд читает данные из папок блока `grs_image_web` (generated, uploaded) на той же машине. Если дашборд и flowimage.ru развёрнуты из разных каталогов или репозиториев, укажи путь к блоку grs_image_web в `.env`:
+
+```env
+# Корень блока grs_image_web (здесь лежат generated/, uploaded/, users.json)
+GRS_IMAGE_WEB_DIR=/root/contentzavod/blocks/grs_image_web
+```
+
+Либо задай папки по отдельности:
+
+```env
+GRS_IMAGE_WEB_GENERATED_DIR=/root/contentzavod/blocks/grs_image_web/generated
+GRS_IMAGE_WEB_UPLOADED_DIR=/root/contentzavod/blocks/grs_image_web/uploaded
+```
+
+После изменения переменных: `sudo systemctl restart analytics-dashboard`.
+
+**Проверка на сервере (если Generation пустой):** выполни по SSH и сверь пути:
+
+```bash
+# Из какого каталога запущен дашборд (WorkingDirectory)
+sudo systemctl show analytics-dashboard -p WorkingDirectory --no-pager
+# Есть ли данные в путях grs_image_web (подставь свой корень проекта)
+ls -la /root/contentzavod/blocks/grs_image_web/generated 2>/dev/null || echo "Папка generated не найдена"
+ls -la /root/contentzavod/blocks/grs_image_web/uploaded  2>/dev/null || echo "Папка uploaded не найдена"
+# Откуда запущен grs-image-web
+sudo systemctl show grs-image-web -p WorkingDirectory --no-pager
+```
+
+Если дашборд из другого каталога — задай `GRS_IMAGE_WEB_DIR` (или оба `*_DIR`) в `.env` дашборда и перезапусти `analytics-dashboard`.
+
 ---
 
 ## 5. Итог

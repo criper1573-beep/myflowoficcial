@@ -4,6 +4,19 @@
 
 ---
 
+## flowimage-store-fix (flowimage.store: Generation + Quickpack алерты) — 2026-02-18
+
+### Выполнено
+1. **blocks/analytics/api.py** — переопределение путей через env: `GRS_IMAGE_WEB_DIR` (база блока), `GRS_IMAGE_WEB_GENERATED_DIR`, `GRS_IMAGE_WEB_UPLOADED_DIR`. При задании используются абсолютные пути вместо относительных от блока.
+2. **blocks/analytics/watchdog_services.py** — для quickpack при заданном `QUICKPACK_URL`: проверка по HTTP (200 = работает), алерт только при недоступности; перезапуск через systemd не выполняется.
+3. **Документация:** DEPLOY_DASHBOARD_FLOWIMAGE_STORE.md (переменные для пустой Generation, чеклист проверки на сервере); blocks/analytics/README.md (раздел Generation и env); docs/rules/KEYS_AND_TOKENS.md (QUICKPACK_URL используется и в watchdog).
+
+### Что сделать на сервере
+- Если на flowimage.store пустой раздел Generation: в `.env` задать `GRS_IMAGE_WEB_DIR=/root/contentzavod/blocks/grs_image_web` (или фактические пути), перезапустить `analytics-dashboard`.
+- Чтобы прекратить алерты по quickpack: в `.env` на сервере, где запущен watchdog, задать `QUICKPACK_URL=https://...` (URL главной Quickpack); перезапустить `contentzavod-watchdog`.
+
+---
+
 ## webhook-002 (Деплой по вебхуку) — 2025-02-18
 
 ### Выполнено
@@ -23,6 +36,20 @@
 
 ### Архив
 - Задача закрыта 2025-02-18. Архив: `memory-bank/archive/archive-webhook-002.md`.
+
+---
+
+## dev-changelog-004 (Dev-ветка и история патчей) — 2026-02-18
+
+### Выполнено
+1. Webhook: main → prod, dev → staging; bootstrap; /bootstrap endpoint.
+2. Staging: setup_staging_all.sh, systemd units, nginx configs, три поддомена.
+3. Версионирование: docs/config/VERSION, CHANGELOG_WORKFLOW.md, CHANGELOG v2.1.0.
+4. GitHub Action setup-staging.yml; plink для bootstrap (добавление ключа).
+5. dev.flowimage.ru, dev.flowimage.store — 200.
+
+### Архив
+- Задача закрыта 2026-02-18. Архив: `memory-bank/archive/archive-dev-changelog-004.md`.
 
 ---
 

@@ -4,12 +4,12 @@
 
 ---
 
-**Текущий фокус:** dev-changelog-004 — Dev-ветка с деплоем на поддомен + история патчей.
+**Текущая задача:** flowimage-store-fix — проверка flowimage.store: (1) данные Generation с flowimage.ru не попадают на дашборд; (2) частые Telegram-алерты про quickpack при «работающем» сервисе на главной.
 
-**Контекст:**
-- Production: main → flowimage.ru, директория /root/contentzavod, сервисы grs-image-web, analytics-dashboard
-- Staging (новое): dev → dev.flowimage.ru (поддомен), отдельная директория или порт, grs-image-web-staging
-- Webhook: один endpoint, проверка ref в payload — main → prod, dev → staging
-- CHANGELOG: уже есть docs/guides/CHANGELOG.md; добавить версии (v2.0, v2.1) и workflow
+**Ключевые файлы:**
+- `blocks/analytics/api.py` — API дашборда, чтение generation из `blocks/grs_image_web/generated` и `uploaded` (локальная ФС).
+- `blocks/analytics/watchdog_services.py` — проверка systemd-юнитов, quickpack в списке; интервал 90 сек; QUICKPACK_URL не используется.
+- `blocks/grs_image_web/` — пишет генерации в `generated/<telegram_id>/`, ссылки в `uploaded/<telegram_id>/`.
+- `docs/guides/DEPLOY_DASHBOARD_FLOWIMAGE_STORE.md` — деплой дашборда; на сервере может быть репо myflowoficcial.
 
-**Последнее обновление:** VAN 2026-02-18 — инициализация задачи dev-changelog-004.
+**Последнее обновление:** BUILD 2026-02-18 — реализованы env для путей generation (api.py), HTTP-проверка quickpack в watchdog, обновлена документация. Готово к проверке на сервере и при необходимости /reflect, /archive.

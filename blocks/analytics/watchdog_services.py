@@ -3,6 +3,9 @@
 Watchdog: проверка systemd-сервисов раз в CHECK_INTERVAL сек.
 Если сервис не active — отправка уведомления в Telegram и попытка перезапуска.
 
+Quickpack: если задан QUICKPACK_URL, проверяется по HTTP (200 = работает).
+Перезапуск через systemd для quickpack не выполняется при проверке по URL.
+
 Требуется в .env:
   TELEGRAM_BOT_TOKEN — токен бота
   TELEGRAM_ALERT_CHAT_ID — id чата (или канала) для алертов
@@ -14,6 +17,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.request import Request as UrlRequest, urlopen
+from urllib.error import URLError, HTTPError
 
 # Корень проекта
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -64,6 +69,19 @@ def restart_service(unit: str) -> bool:
         return False
 
 
+def is_quickpack_ok() -> bool:
+    """Проверка Quickpack по QUICKPACK_URL (HTTP 200 = работает)."""
+    url = (os.getenv("QUICKPACK_URL") or "").strip()
+    if not url:
+        return False
+    try:
+        req = UrlRequest(url, headers={"User-Agent": "ContentZavod-Watchdog/1.0"})
+        with urlopen(req, timeout=8) as r:
+            return r.getcode() == 200
+    except (URLError, HTTPError, OSError):
+        return False
+
+
 def send_telegram(text: str) -> bool:
     if not BOT_TOKEN or not CHAT_ID:
         return False
@@ -87,6 +105,13 @@ def main():
         print("Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_ALERT_CHAT_ID в .env для уведомлений.")
     while True:
         for unit, label in SERVICES:
+            # Quickpack: при заданном QUICKPACK_URL проверяем по HTTP, перезапуск не делаем
+            if unit == "quickpack":
+                quickpack_url = (os.getenv("QUICKPACK_URL") or "").strip()
+                if quickpack_url:
+                    if not is_quickpack_ok():
+                        send_telegram(f"⚠️ Сервис недоступен: {label} ({unit}) — нет ответа по {quickpack_url}")
+                    continue
             if not is_active(unit):
                 msg = f"⚠️ Сервис упал: {label} ({unit})"
                 send_telegram(msg)

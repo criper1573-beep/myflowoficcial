@@ -335,9 +335,9 @@ ANALYTICS_SERVER_SERVICES_URL=http://85.198.66.62
 QUICKPACK_URL=https://твой-сайт-quickpack.ru
 ```
 
-**Назначение:** На сервере в блоке «Сервисы на сервере» плашка Quickpack определяется по systemd-юниту `quickpack`. Если сайт отдаётся через nginx без отдельного юнита — задай здесь URL главной страницы; дашборд будет считать сервис работающим при ответе HTTP 200.
+**Назначение:** На сервере в блоке «Сервисы на сервере» плашка Quickpack определяется по systemd-юниту `quickpack`. Если сайт отдаётся через nginx без отдельного юнита — задай здесь URL главной страницы; дашборд будет считать сервис работающим при ответе HTTP 200. **Watchdog:** если `QUICKPACK_URL` задан в `.env` на сервере, где запущен watchdog (`contentzavod-watchdog`), проверка Quickpack идёт по HTTP (200 = работает); алерты «Сервис упал» по quickpack не шлются из-за отсутствия systemd-юнита.
 
-**Используется в:** `blocks/analytics/api.py` — эндпоинт `/api/server-services`.
+**Используется в:** `blocks/analytics/api.py` — эндпоинт `/api/server-services`; `blocks/analytics/watchdog_services.py` — проверка Quickpack по URL вместо systemd.
 
 **Watchdog (алерты при падении сервисов на сервере):**
 

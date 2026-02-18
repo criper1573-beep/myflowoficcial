@@ -22,13 +22,14 @@ from .models import Run, Step
 logger = logging.getLogger(__name__)
 BLOCK_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BLOCK_DIR / "static"
-# Соседний блок grs_image_web (генерации и загрузки ссылок)
-GRIS_IMAGE_WEB_DIR = BLOCK_DIR.parent / "grs_image_web"
-GENERATED_DIR = GRIS_IMAGE_WEB_DIR / "generated"
-UPLOADED_DIR = GRIS_IMAGE_WEB_DIR / "uploaded"
+# Соседний блок grs_image_web (генерации и загрузки ссылок). Пути можно переопределить через env.
+_GRS_BASE = Path(os.getenv("GRS_IMAGE_WEB_DIR")).resolve() if os.getenv("GRS_IMAGE_WEB_DIR") else (BLOCK_DIR.parent / "grs_image_web")
+GRIS_IMAGE_WEB_DIR = _GRS_BASE
+GENERATED_DIR = Path(os.getenv("GRS_IMAGE_WEB_GENERATED_DIR")).resolve() if os.getenv("GRS_IMAGE_WEB_GENERATED_DIR") else (_GRS_BASE / "generated")
+UPLOADED_DIR = Path(os.getenv("GRS_IMAGE_WEB_UPLOADED_DIR")).resolve() if os.getenv("GRS_IMAGE_WEB_UPLOADED_DIR") else (_GRS_BASE / "uploaded")
 GRIS_IMAGE_WEB_PUBLIC_URL = os.getenv("GRS_IMAGE_WEB_PUBLIC_URL", "https://flowimage.ru").rstrip("/")
 ALLOWED_IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp")
-USERS_JSON = GRIS_IMAGE_WEB_DIR / "users.json"
+USERS_JSON = _GRS_BASE / "users.json"
 
 
 def _load_generation_user_names() -> dict:
