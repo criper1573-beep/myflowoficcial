@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """FastAPI: веб-страница генерации изображений через GRS AI (nano-banana)."""
 import base64
+import json
 import logging
 import os
 import re
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 BLOCK_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BLOCK_DIR / "static"
 GENERATED_DIR = BLOCK_DIR / "generated"
+USERS_JSON = BLOCK_DIR / "users.json"
 
 # Загрузка .env из корня проекта (если есть)
 try:
@@ -43,6 +45,32 @@ COOKIE_NAME = "grs_image_web_session"
 COOKIE_MAX_AGE = 30 * 24 * 3600
 
 
+def _display_name_from_telegram_user(user: dict) -> str:
+    """Имя для отображения: first_name + last_name или username или ID."""
+    first = (user.get("first_name") or "").strip()
+    last = (user.get("last_name") or "").strip()
+    username = (user.get("username") or "").strip()
+    if first or last:
+        return f"{first} {last}".strip() or first or last
+    if username:
+        return f"@{username}"
+    return str(user.get("id") or "")
+
+
+def _save_user_display_name(telegram_id: int, display_name: str) -> None:
+    """Добавить/обновить имя пользователя в users.json для дашборда аналитики."""
+    try:
+        data = {}
+        if USERS_JSON.is_file():
+            with open(USERS_JSON, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        data[str(telegram_id)] = display_name
+        with open(USERS_JSON, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=0)
+    except Exception as e:
+        logger.warning("Не удалось сохранить users.json: %s", e)
+
+
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     refs: list[str] = Field(default_factory=list, max_length=5)
@@ -66,9 +94,9 @@ def _safe_filename(name: str) -> str:
     return re.sub(r"[^\w\-.]", "_", name)[:80]
 
 
-def _save_image_from_result(result: dict) -> tuple[str, Path] | None:
-    """Сохраняет изображение из ответа GRS (url или b64_json). Возвращает (filename, path) или None."""
-    _ensure_generated_dir()
+def _save_image_from_result(result: dict, save_dir: Path) -> tuple[str, Path] | None:
+    """Сохраняет изображение из ответа GRS в save_dir (папка пользователя). Возвращает (filename, path) или None."""
+    save_dir.mkdir(parents=True, exist_ok=True)
     ts = int(time.time() * 1000)
     ext = "png"
 
@@ -86,7 +114,7 @@ def _save_image_from_result(result: dict) -> tuple[str, Path] | None:
         return None
 
     filename = f"gen_{ts}.{ext}"
-    path = GENERATED_DIR / filename
+    path = save_dir / filename
     path.write_bytes(data)
     return filename, path
 
@@ -132,6 +160,8 @@ async def api_auth_telegram(request: Request, response: Response):
         get_generated_dir(BLOCK_DIR, tid)
     except Exception:
         logger.exception("Failed to create generated dir for user %s", tid)
+    # Сохраняем имя для дашборда аналитики (Generation)
+    _save_user_display_name(tid, _display_name_from_telegram_user(user))
     response.set_cookie(COOKIE_NAME, token, httponly=True, max_age=COOKIE_MAX_AGE, path="/")
     return {"authenticated": True}
 
@@ -200,13 +230,20 @@ def api_improve_prompt(body: ImprovePromptRequest):
 
 
 @app.post("/api/generate")
-def api_generate(body: GenerateRequest):
+def api_generate(request: Request, body: GenerateRequest):
     """
     Генерация изображения: промпт + до 5 референсов (data URL base64).
-    Модель: nano-banana-pro. Результат сохраняется в папку generated/.
+    Модель: nano-banana-pro. Результат сохраняется в папку generated/<telegram_id>/.
     """
     if not os.getenv("GRS_AI_API_KEY"):
         raise HTTPException(status_code=503, detail="GRS_AI_API_KEY не настроен")
+    tid = _get_tid_from_request(request)
+    if tid is None and not REQUIRE_AUTH:
+        tid = 0
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    save_dir = get_generated_dir(BLOCK_DIR, tid)
+
     refs = [r for r in (body.refs or []) if r and str(r).strip().startswith("data:")]
     if len(refs) > 5:
         refs = refs[:5]
@@ -228,27 +265,33 @@ def api_generate(body: GenerateRequest):
             detail=result.get("error", "Генерация не вернула изображение"),
         )
 
-    saved = _save_image_from_result(result)
+    saved = _save_image_from_result(result, save_dir)
     if not saved:
         raise HTTPException(status_code=502, detail="Не удалось сохранить изображение")
     filename, _ = saved
     return {
         "success": True,
-        "imageUrl": f"/generated/{filename}",
+        "imageUrl": f"/generated/{tid}/{filename}",
         "id": filename,
     }
 
 
 @app.get("/api/history")
-def api_history():
-    """Последние 20 сгенерированных изображений (для попапа «История»)."""
-    _ensure_generated_dir()
+def api_history(request: Request):
+    """Последние 20 сгенерированных изображений текущего пользователя (для попапа «История»)."""
+    tid = _get_tid_from_request(request)
+    if tid is None and not REQUIRE_AUTH:
+        tid = 0
+    if tid is None:
+        return {"items": []}
+    user_dir = get_generated_dir(BLOCK_DIR, tid)
+    if not user_dir.exists():
+        return {"items": []}
+    exts = (".png", ".jpg", ".jpeg", ".webp")
+    all_files = [p for p in user_dir.iterdir() if p.is_file() and p.suffix.lower() in exts]
     files = []
-    for p in sorted(GENERATED_DIR.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_file() and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
-            files.append({"id": p.name, "url": f"/generated/{p.name}"})
-        if len(files) >= 20:
-            break
+    for p in sorted(all_files, key=lambda x: x.stat().st_mtime, reverse=True)[:20]:
+        files.append({"id": p.name, "url": f"/generated/{tid}/{p.name}"})
     return {"items": files}
 
 
