@@ -7,7 +7,7 @@ import re
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -36,6 +36,7 @@ from .auth import (
     make_session_token,
     verify_session_token,
     get_generated_dir,
+    get_uploaded_dir,
 )
 
 COOKIE_NAME = "grs_image_web_session"
@@ -45,6 +46,10 @@ COOKIE_MAX_AGE = 30 * 24 * 3600
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     refs: list[str] = Field(default_factory=list, max_length=5)
+
+
+class ImprovePromptRequest(BaseModel):
+    prompt: str = Field("", min_length=0)
 
 
 def _get_grs_client():
@@ -88,6 +93,15 @@ def _save_image_from_result(result: dict) -> tuple[str, Path] | None:
 
 REQUIRE_AUTH = os.getenv("GRS_IMAGE_WEB_REQUIRE_AUTH", "true").strip().lower() in ("true", "1", "yes")
 BOT_USERNAME = (os.getenv("GRS_IMAGE_WEB_BOT_USERNAME") or "").strip() or None
+
+# Максимальный размер загружаемого файла для ссылок (15 МБ)
+LINKS_UPLOAD_MAX_BYTES = 15 * 1024 * 1024
+
+
+def _get_tid_from_request(request: Request) -> int | None:
+    """Вернуть telegram_id из cookie или None."""
+    token = request.cookies.get(COOKIE_NAME)
+    return verify_session_token(token) if token else None
 
 
 @app.get("/api/config")
@@ -137,14 +151,14 @@ def api_logout(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"ok": True}
 @app.post("/api/improve-prompt")
-def api_improve_prompt(body: dict):
+def api_improve_prompt(body: ImprovePromptRequest):
     """
     Улучшение промта через GRS AI.
     """
     if not os.getenv("GRS_AI_API_KEY"):
         raise HTTPException(status_code=503, detail="GRS_AI_API_KEY не настроен")
     
-    prompt = body.get("prompt", "").strip()
+    prompt = (body.prompt or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Промпт не может быть пустым")
     
@@ -242,9 +256,116 @@ def api_history():
 def serve_generated(filename: str):
     """Раздача файла из папки generated (только существующие файлы в этой папке)."""
     path = (GENERATED_DIR / filename).resolve()
-    if not path.is_file() or GENERATED_DIR not in path.parents and path != GENERATED_DIR:
+    if not path.is_file() or (GENERATED_DIR.resolve() not in path.parents and path != GENERATED_DIR.resolve()):
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(path)
+
+
+def _links_tid(request: Request) -> int | None:
+    """Telegram ID для раздела «Ссылки»: из cookie или 0 при отключённой авторизации."""
+    tid = _get_tid_from_request(request)
+    if tid is not None:
+        return tid
+    if not REQUIRE_AUTH:
+        return 0
+    return None
+
+
+@app.get("/api/links")
+def api_links_list(request: Request, limit: int = 10, offset: int = 0):
+    """Список загруженных фото пользователя (прямые ссылки)."""
+    tid = _links_tid(request)
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    limit = max(1, min(100, limit))
+    offset = max(0, offset)
+    user_dir = get_uploaded_dir(BLOCK_DIR, tid)
+    if not user_dir.exists():
+        return {"items": [], "total": 0}
+    all_files = [
+        p for p in user_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp")
+    ]
+    total = len(all_files)
+    sorted_files = sorted(all_files, key=lambda x: x.stat().st_mtime, reverse=True)
+    page = sorted_files[offset:offset + limit]
+    base = str(request.base_url).rstrip("/")
+    items = []
+    for p in page:
+        name = p.name
+        url = f"/uploaded/{name}"
+        full_url = f"{base}{url}"
+        items.append({"id": name, "url": url, "fullUrl": full_url})
+    return {"items": items, "total": total}
+
+
+@app.post("/api/links/upload")
+async def api_links_upload(request: Request, file: UploadFile = File(...)):
+    """Загрузка фото для получения прямой ссылки. До 15 МБ."""
+    tid = _links_tid(request)
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Разрешены только изображения (PNG, JPG, GIF, WebP)")
+    content = await file.read()
+    if len(content) > LINKS_UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Файл слишком большой. До 15 МБ.")
+    user_dir = get_uploaded_dir(BLOCK_DIR, tid)
+    ext = (file.filename or "").split(".")[-1].lower() if "." in (file.filename or "") else "png"
+    if ext not in ("png", "jpg", "jpeg", "gif", "webp"):
+        ext = "png"
+    ts = int(time.time() * 1000)
+    safe_name = _safe_filename(file.filename or "image")[:50]
+    filename = f"link_{ts}_{safe_name}.{ext}" if safe_name else f"link_{ts}.{ext}"
+    file_path = user_dir / filename
+    file_path.write_bytes(content)
+    base = str(request.base_url).rstrip("/")
+    url = f"/uploaded/{filename}"
+    return {"id": filename, "url": url, "fullUrl": f"{base}{url}"}
+
+
+@app.delete("/api/links/{file_id:path}")
+def api_links_delete(request: Request, file_id: str):
+    """Удаление загруженного фото (только своё)."""
+    tid = _links_tid(request)
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    if not file_id or ".." in file_id or "/" in file_id or "\\" in file_id:
+        raise HTTPException(status_code=400, detail="Недопустимый идентификатор")
+    user_dir = get_uploaded_dir(BLOCK_DIR, tid).resolve()
+    path = (user_dir / file_id).resolve()
+    if not path.is_file() or user_dir not in path.parents:
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        path.unlink()
+    except OSError as e:
+        logger.warning("Не удалось удалить файл %s: %s", path, e)
+        raise HTTPException(status_code=500, detail="Не удалось удалить файл")
+    return {"ok": True}
+
+
+@app.get("/uploaded/{filename:path}")
+def serve_uploaded(request: Request, filename: str):
+    """Раздача загруженного файла (только из папки текущего пользователя)."""
+    tid = _links_tid(request)
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    if ".." in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Недопустимый путь")
+    user_dir = get_uploaded_dir(BLOCK_DIR, tid).resolve()
+    path = (user_dir / filename).resolve()
+    if not path.is_file() or user_dir not in path.parents:
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path)
+
+
+@app.get("/links")
+def links_page():
+    """Страница «Прямые ссылки на изображения»."""
+    links_path = STATIC_DIR / "links.html"
+    if not links_path.exists():
+        raise HTTPException(status_code=404, detail="Page not found")
+    return FileResponse(links_path)
 
 
 @app.get("/")
