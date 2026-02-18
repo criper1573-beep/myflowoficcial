@@ -1,0 +1,23 @@
+# Запуск вручную: Actions → Setup Staging → Run workflow
+# Секреты: SSH_PRIVATE_KEY (приватный ключ для root@сервер), SERVER_HOST (85.198.66.62)
+
+name: Setup Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/key
+          chmod 600 ~/.ssh/key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Run setup on server
+        run: |
+          ssh -i ~/.ssh/key -o StrictHostKeyChecking=no root@${{ secrets.SERVER_HOST }} \
+            "cd /root/contentzavod && git pull origin main && sudo bash docs/scripts/deploy_beget/setup_staging_all.sh"

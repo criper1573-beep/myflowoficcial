@@ -22,7 +22,12 @@ Push в ветку `dev` → автоматический деплой на **de
 
 A-записи: **dev.flowimage.ru**, **dev.flowimage.store**, **dev.quickpack.space** → IP сервера.
 
-### Вариант А: единый скрипт (рекомендуется)
+### Вариант А: GitHub Action (без SSH)
+
+1. Repo → Settings → Secrets → Actions: добавь `SSH_PRIVATE_KEY` (приватный ключ для root@сервер) и `SERVER_HOST` (85.198.66.62).
+2. Actions → Setup Staging → Run workflow.
+
+### Вариант Б: единый скрипт по SSH
 
 ```bash
 cd /root/contentzavod

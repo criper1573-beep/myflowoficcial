@@ -52,8 +52,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable grs-image-web-staging analytics-dashboard-staging 2>/dev/null || true
 sudo systemctl start grs-image-web-staging analytics-dashboard-staging 2>/dev/null || true
 
-# 4. Nginx configs
+# 4a. Nginx: /bootstrap для webhook
 echo "[4/6] Nginx configs..."
+if [ -f "$PROJECT_DIR/docs/scripts/deploy_beget/patch_nginx_bootstrap.py" ]; then
+    sudo python3 "$PROJECT_DIR/docs/scripts/deploy_beget/patch_nginx_bootstrap.py" 2>/dev/null && sudo nginx -t && sudo systemctl reload nginx || true
+fi
+
+# 4b. Nginx: staging поддомены
 cd "$PROJECT_DIR_STAGING"
 for pair in "flowimage-dev:nginx-flowimage-dev.conf.example" "flowimage-store-dev:nginx-flowimage-store-dev.conf.example" "quickpack-dev:nginx-quickpack-dev.conf.example"; do
     cfg="${pair%%:*}"

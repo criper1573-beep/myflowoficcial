@@ -66,9 +66,19 @@ class WebhookHandler(BaseHTTPRequestHandler):
         return hmac.compare_digest(signature, expected_signature)
 
     def do_GET(self):
-        """Health check endpoint."""
-        if self.path == '/health':
+        """Health check и bootstrap."""
+        parsed = urlparse(self.path)
+        if parsed.path == '/health':
             self._send_response(200, "Webhook server is running")
+        elif parsed.path == '/bootstrap':
+            from urllib.parse import parse_qs
+            qs = parse_qs(parsed.query)
+            secret = (qs.get('secret') or [''])[0]
+            if SECRET_TOKEN and not hmac.compare_digest(secret, SECRET_TOKEN):
+                self._send_response(403, "Invalid secret")
+                return
+            self._send_response(200, "Bootstrap started")
+            self._run_bootstrap()
         else:
             self._send_response(404, "Not found")
 
@@ -229,15 +239,20 @@ class WebhookHandler(BaseHTTPRequestHandler):
         logger.info("Деплой [%s] завершен успешно", env_name)
 
     def _bootstrap_staging_if_needed(self):
-        """Если staging не настроен — запустить setup_staging_all.sh (один раз)."""
+        """Если staging не настроен — запустить setup (один раз)."""
         staging_dir = Path(PROJECT_DIR_STAGING or '/root/contentzavod-staging')
         if staging_dir.exists():
             return
+        self._run_bootstrap()
+
+    def _run_bootstrap(self):
+        """Запустить setup_staging_all.sh."""
+        staging_dir = Path(PROJECT_DIR_STAGING or '/root/contentzavod-staging')
         setup_script = PROJECT_DIR / 'docs' / 'scripts' / 'deploy_beget' / 'setup_staging_all.sh'
         if not setup_script.exists():
-            logger.info("Staging setup script не найден, пропуск")
+            logger.info("Staging setup script не найден")
             return
-        logger.info("Staging не найден, запускаем bootstrap: %s", setup_script)
+        logger.info("Запуск bootstrap: %s", setup_script)
         try:
             result = subprocess.run(
                 ['sudo', 'bash', str(setup_script), str(PROJECT_DIR), str(staging_dir)],
