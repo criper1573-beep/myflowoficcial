@@ -377,12 +377,23 @@ def _generation_images_summary():
         return {"total": 0, "byDay": [], "users": []}
     by_day = defaultdict(int)
     user_counts = defaultdict(int)
+    # Подпапки по telegram_id (generated/123/*.png)
     for user_dir in GENERATED_DIR.iterdir():
         if not user_dir.is_dir() or not user_dir.name.isdigit():
             continue
         tid = user_dir.name
         for f in user_dir.glob("*.png"):
             user_counts[tid] += 1
+            try:
+                mtime = f.stat().st_mtime
+                day = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d")
+                by_day[day] += 1
+            except OSError:
+                pass
+    # Файлы в корне generated/*.png (grs_image_web сохраняет сюда при генерации)
+    for f in GENERATED_DIR.glob("*.png"):
+        if f.is_file():
+            user_counts["0"] = user_counts.get("0", 0) + 1
             try:
                 mtime = f.stat().st_mtime
                 day = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d")
@@ -452,25 +463,43 @@ def api_generation_links_summary():
 def api_generation_images_user(telegram_id: str):
     """Список генераций пользователя: id, prompt, date, imageProxyUrl, downloadUrl."""
     tid = _safe_filename(telegram_id).strip("_") or "0"
-    user_dir = GENERATED_DIR / tid
-    if not user_dir.is_dir():
-        return {"items": []}
-    prompts = _load_prompts_metadata(user_dir)
-    files = sorted(user_dir.glob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True)
     items = []
-    for f in files:
-        try:
-            mtime = f.stat().st_mtime
-            date_str = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
-        except OSError:
-            date_str = ""
-        items.append({
-            "id": f.name,
-            "prompt": prompts.get(f.name, ""),
-            "date": date_str,
-            "imageProxyUrl": f"/api/generation/image-proxy/{tid}/{f.name}",
-            "downloadUrl": f"{GRIS_IMAGE_WEB_PUBLIC_URL}/generated/{tid}/{f.name}",
-        })
+    # Подпапка generated/<tid>/
+    user_dir = GENERATED_DIR / tid
+    if user_dir.is_dir():
+        prompts = _load_prompts_metadata(user_dir)
+        for f in sorted(user_dir.glob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True):
+            try:
+                mtime = f.stat().st_mtime
+                date_str = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+            except OSError:
+                date_str = ""
+            items.append({
+                "id": f.name,
+                "prompt": prompts.get(f.name, ""),
+                "date": date_str,
+                "imageProxyUrl": f"/api/generation/image-proxy/{tid}/{f.name}",
+                "downloadUrl": f"{GRIS_IMAGE_WEB_PUBLIC_URL}/generated/{tid}/{f.name}",
+            })
+    # Для tid "0" добавляем файлы из корня generated/*.png (куда пишет grs_image_web)
+    if tid == "0":
+        root_prompts = _load_prompts_metadata(GENERATED_DIR) if GENERATED_DIR.is_dir() else {}
+        for f in sorted(GENERATED_DIR.glob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True):
+            if not f.is_file():
+                continue
+            try:
+                mtime = f.stat().st_mtime
+                date_str = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M")
+            except OSError:
+                date_str = ""
+            items.append({
+                "id": f.name,
+                "prompt": root_prompts.get(f.name, ""),
+                "date": date_str,
+                "imageProxyUrl": f"/api/generation/image-proxy/0/{f.name}",
+                "downloadUrl": f"{GRIS_IMAGE_WEB_PUBLIC_URL}/generated/{f.name}",
+            })
+    items.sort(key=lambda x: x.get("date") or "", reverse=True)
     return {"items": items}
 
 
@@ -504,6 +533,8 @@ def api_generation_image_proxy(telegram_id: str, filename: str):
     tid = _safe_filename(telegram_id).strip("_") or "0"
     fname = _safe_filename(filename)
     path = GENERATED_DIR / tid / fname
+    if not path.is_file() and tid == "0":
+        path = GENERATED_DIR / fname  # файлы в корне generated/
     if not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(str(path), media_type="image/png")
