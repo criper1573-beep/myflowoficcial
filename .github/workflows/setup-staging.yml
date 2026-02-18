@@ -1,5 +1,5 @@
-# Запуск вручную: Actions → Setup Staging → Run workflow
-# Секреты: SSH_PRIVATE_KEY (приватный ключ для root@сервер), SERVER_HOST (85.198.66.62)
+# Запуск: Actions → Setup Staging → Run workflow
+# Секреты: SSH_PRIVATE_KEY, SERVER_HOST (85.198.66.62)
 
 name: Setup Staging
 
