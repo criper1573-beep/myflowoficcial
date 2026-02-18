@@ -215,6 +215,17 @@ class WebhookHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass  # сервис может быть не установлен
 
+        # Перезапуск webhook (чтобы подхватить обновлённый код)
+        if env_name == 'production':
+            try:
+                subprocess.Popen(
+                    ['sh', '-c', 'sleep 3 && sudo -n systemctl restart github-webhook'],
+                    cwd=str(project_dir), start_new_session=True
+                )
+                logger.info("Запланирован перезапуск github-webhook через 3 сек")
+            except Exception:
+                pass
+
         logger.info("Деплой [%s] завершен успешно", env_name)
 
     def _bootstrap_staging_if_needed(self):
