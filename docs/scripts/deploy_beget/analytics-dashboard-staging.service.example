@@ -1,0 +1,21 @@
+# Юнит systemd для дашборда аналитики — STAGING (ветка dev, dev.flowimage.store).
+# Порт 8051 — отличный от prod (8050).
+# Подставить: __PROJECT_DIR_STAGING__ (например /root/contentzavod-staging)
+
+[Unit]
+Description=КонтентЗавод — дашборд аналитики STAGING (dev.flowimage.store)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=__PROJECT_DIR_STAGING__
+Environment="PYTHONPATH=__PROJECT_DIR_STAGING__"
+Environment="DASHBOARD_PUBLIC_URL=https://dev.flowimage.store"
+ExecStart=__PROJECT_DIR_STAGING__/venv/bin/uvicorn blocks.analytics.api:app --host 127.0.0.1 --port 8051
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

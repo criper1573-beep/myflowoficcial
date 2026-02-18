@@ -8,18 +8,33 @@ Push в ветку `dev` → автоматический деплой на **de
 
 | Ветка | Домен | Директория | Сервис |
 |-------|-------|------------|--------|
-| main | flowimage.ru | /root/contentzavod | grs-image-web (порт 8765) |
-| dev | dev.flowimage.ru | /root/contentzavod-staging | grs-image-web-staging (порт 8766) |
+| main | flowimage.ru | /root/contentzavod | grs-image-web (8765) |
+| main | flowimage.store | /root/contentzavod | analytics-dashboard (8050) |
+| dev | dev.flowimage.ru | /root/contentzavod-staging | grs-image-web-staging (8766) |
+| dev | dev.flowimage.store | /root/contentzavod-staging | analytics-dashboard-staging (8051) |
+| dev | dev.quickpack.space | — | Quickpack (порт 8086, настраивается отдельно) |
 
 ---
 
 ## Настройка (один раз)
 
-### 1. Поддомен
+### 1. Поддомены (DNS уже созданы)
 
-В панели DNS хостинга добавь A-запись: **dev.flowimage.ru** → IP сервера (тот же, что у flowimage.ru).
+A-записи: **dev.flowimage.ru**, **dev.flowimage.store**, **dev.quickpack.space** → IP сервера.
 
-### 2. Клонирование проекта для staging
+### Вариант А: единый скрипт (рекомендуется)
+
+```bash
+cd /root/contentzavod
+git pull origin main
+sudo bash docs/scripts/deploy_beget/setup_staging_all.sh
+```
+
+Скрипт: клонирует staging, venv, systemd units, nginx configs, webhook, sudoers.
+
+### Вариант Б: по шагам
+
+#### 2. Клонирование
 
 Вариант А — скрипт (подставь REPO_URL и PROJECT_DIR_STAGING):
 
@@ -39,29 +54,23 @@ sudo ./venv/bin/pip install -r docs/config/requirements.txt
 sudo ./venv/bin/pip install -r blocks/grs_image_web/requirements.txt
 ```
 
-### 3. Systemd-сервис для staging
+#### 3. Systemd (grs-image-web-staging, analytics-dashboard-staging)
 
 ```bash
-# Копируем пример
-sudo cp /root/contentzavod-staging/docs/scripts/deploy_beget/grs-image-web-staging.service.example /etc/systemd/system/grs-image-web-staging.service
-
-# Подставляем путь
-sudo sed -i 's|__PROJECT_DIR_STAGING__|/root/contentzavod-staging|g' /etc/systemd/system/grs-image-web-staging.service
-
-# Запускаем
-sudo systemctl daemon-reload
-sudo systemctl enable grs-image-web-staging
-sudo systemctl start grs-image-web-staging
+for u in grs-image-web-staging analytics-dashboard-staging; do
+  sed "s|__PROJECT_DIR_STAGING__|/root/contentzavod-staging|g" \
+    /root/contentzavod-staging/docs/scripts/deploy_beget/${u}.service.example | sudo tee /etc/systemd/system/${u}.service
+done
+sudo systemctl daemon-reload && sudo systemctl enable --now grs-image-web-staging analytics-dashboard-staging
 ```
 
-### 4. Nginx для поддомена
+#### 4. Nginx (все три поддомена)
 
 ```bash
-# Копируем конфиг
-sudo cp /root/contentzavod/docs/scripts/deploy_beget/nginx-flowimage-dev.conf.example /etc/nginx/sites-available/flowimage-dev
-sudo ln -s /etc/nginx/sites-available/flowimage-dev /etc/nginx/sites-enabled/
-
-# Проверяем и перезагружаем
+for cfg in flowimage-dev flowimage-store-dev quickpack-dev; do
+  sudo cp /root/contentzavod-staging/docs/scripts/deploy_beget/nginx-${cfg}.conf.example /etc/nginx/sites-available/${cfg}
+  sudo ln -sf /etc/nginx/sites-available/${cfg} /etc/nginx/sites-enabled/
+done
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -94,10 +103,10 @@ sudo visudo
 Добавь (или объедини с существующей строкой для webhook):
 
 ```
-u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart grs-image-web-staging
+root ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart grs-image-web-staging, /usr/bin/systemctl restart analytics-dashboard-staging
 ```
 
-(Подставь пользователя, от которого крутится webhook, если не root.)
+(Если webhook под root — `root`; иначе подставь своего пользователя.)
 
 ### 7. GitHub: webhook на все push
 
@@ -107,9 +116,13 @@ u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart grs-image-web-staging
 
 ## Проверка
 
-- **Staging:** открой https://dev.flowimage.ru (или http до настройки SSL)
-- **Деплой dev:** сделай изменение, `git push origin dev` → через несколько секунд обнови dev.flowimage.ru
-- **Production:** flowimage.ru не меняется при push в dev
+- **dev.flowimage.ru** — GRS Image Web (staging)
+- **dev.flowimage.store** — дашборд аналитики (staging)
+- **dev.quickpack.space** — Quickpack (настрой порт 8086 в nginx если другой)
+- **Деплой dev:** `git push origin dev` → вебхук обновит staging
+- **Production:** flowimage.ru и flowimage.store не меняются при push в dev
+
+**SSL:** `sudo certbot --nginx -d dev.flowimage.ru -d dev.flowimage.store -d dev.quickpack.space --non-interactive --agree-tos`
 
 ---
 

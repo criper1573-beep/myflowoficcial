@@ -25,7 +25,7 @@ LOG_FILE = PROJECT_DIR / 'storage' / 'webhook.log'
 # Ветки и окружения: ref -> (project_dir, services)
 DEPLOY_MAIN_DIR = PROJECT_DIR
 DEPLOY_MAIN_SERVICES = ['analytics-dashboard', 'grs-image-web']
-DEPLOY_STAGING_SERVICES = ['grs-image-web-staging']  # analytics-dashboard-staging при наличии
+DEPLOY_STAGING_SERVICES = ['analytics-dashboard-staging', 'grs-image-web-staging']
 
 # Директория для логов должна существовать до настройки FileHandler
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)

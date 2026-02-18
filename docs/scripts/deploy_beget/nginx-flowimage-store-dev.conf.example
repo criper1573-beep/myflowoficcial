@@ -1,0 +1,20 @@
+# Nginx: staging (dev.flowimage.store) — дашборд аналитики на порту 8051.
+# Разместить: /etc/nginx/sites-available/flowimage-store-dev
+# Включить: ln -sf /etc/nginx/sites-available/flowimage-store-dev /etc/nginx/sites-enabled/
+# SSL: certbot --nginx -d dev.flowimage.store
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name dev.flowimage.store;
+    client_max_body_size 25M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8051;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

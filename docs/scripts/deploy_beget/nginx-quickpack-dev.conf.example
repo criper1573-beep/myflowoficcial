@@ -1,0 +1,21 @@
+# Nginx: staging (dev.quickpack.space).
+# Если Quickpack — отдельный проект/репозиторий: замени proxy_pass на нужный порт или root.
+# Разместить: /etc/nginx/sites-available/quickpack-dev
+# Включить: ln -sf /etc/nginx/sites-available/quickpack-dev /etc/nginx/sites-enabled/
+# SSL: certbot --nginx -d dev.quickpack.space
+
+# Вариант A: Quickpack как сервис на порту (подставь свой порт)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name dev.quickpack.space;
+
+    location / {
+        proxy_pass http://127.0.0.1:8086;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
