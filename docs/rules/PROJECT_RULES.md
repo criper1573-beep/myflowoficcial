@@ -461,12 +461,12 @@ logger.error("Ошибка отправки поста: %s", error)
 #### Что обновлять:
 
 1. ✅ README блока
-2. ✅ CHANGELOG.md проекта
+2. ✅ PATCHES.md (история изменений и патчи)
 3. ✅ PROJECT_STATUS.md (если меняется статус)
 4. ✅ Docstrings в коде
 5. ✅ Примеры использования
 
-#### Формат записи в CHANGELOG:
+#### Формат записи в PATCHES:
 
 ```markdown
 ## [YYYY-MM-DD] - Название изменения

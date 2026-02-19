@@ -152,7 +152,7 @@ logger.error("Ошибка")
 
 **При изменении кода обновить:**
 - ✅ README блока
-- ✅ CHANGELOG.md
+- ✅ PATCHES.md
 - ✅ PROJECT_STATUS.md
 - ✅ Docstrings
 - ✅ Примеры

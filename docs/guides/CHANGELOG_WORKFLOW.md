@@ -19,7 +19,7 @@
 ## Где хранится версия
 
 - **docs/config/VERSION** — текущая версия проекта (одна строка, например `2.1.0`)
-- **CHANGELOG.md** — история с номерами версий и списком изменений
+- **PATCHES.md** — единый документ: история версий и пофайловые описания патчей (CHANGELOG.md перенаправляет в PATCHES.md)
 - **git tag** — при релизе: `git tag v2.1.0`
 
 ---
@@ -58,7 +58,7 @@
 
 1. [ ] Убедись, что dev протестирован на staging (dev.flowimage.ru)
 2. [ ] Обнови `docs/config/VERSION`
-3. [ ] Добавь запись в `docs/guides/CHANGELOG.md` (в начало)
+3. [ ] Добавь запись в `docs/guides/PATCHES.md` (раздел «Краткая история версий» и при необходимости «Подробные описания патчей»)
 4. [ ] Merge dev → main
 5. [ ] `git push origin main`
 6. [ ] `git tag vX.Y.Z && git push origin vX.Y.Z`
@@ -67,5 +67,5 @@
 
 ## См. также
 
-- [CHANGELOG.md](CHANGELOG.md) — сама история изменений
+- [PATCHES.md](PATCHES.md) — патчи и история изменений
 - [GIT_BRANCHING.md](GIT_BRANCHING.md) — workflow веток

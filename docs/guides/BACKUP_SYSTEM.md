@@ -402,4 +402,4 @@ python scripts/backup_manager.py info backup_0001
 - [README.md](README.md) - Главная документация проекта
 - [GETTING_STARTED.md](GETTING_STARTED.md) - Быстрый старт
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) - Статус проекта
-- [CHANGELOG.md](CHANGELOG.md) - История изменений проекта
+- [PATCHES.md](PATCHES.md) — Патчи и история изменений проекта

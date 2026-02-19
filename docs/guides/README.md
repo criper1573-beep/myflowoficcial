@@ -20,7 +20,8 @@
 | [PROJECT_RULES.md](PROJECT_RULES.md) | 📋 Правила проекта (ОБЯЗАТЕЛЬНО К ПРОЧТЕНИЮ) |
 | [KEYS_AND_TOKENS.md](KEYS_AND_TOKENS.md) | 🔑 Ключи и токены (где получить и как хранить) |
 | [PROJECT_STATUS.md](PROJECT_STATUS.md) | 📊 Текущий статус проекта |
-| [CHANGELOG.md](CHANGELOG.md) | 📝 История изменений |
+| [PATCHES.md](PATCHES.md) | 📝 Патчи и история изменений (единый документ) |
+| [CHANGELOG.md](CHANGELOG.md) | 📝 Ссылка на PATCHES.md |
 | [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md) | 📝 Версии и workflow релизов |
 | [GIT_BRANCHING.md](GIT_BRANCHING.md) | 🌿 Ветки main, dev, feature |
 | [DEPLOY_WEBHOOK.md](DEPLOY_WEBHOOK.md) | 🚀 Деплой по вебхуку |

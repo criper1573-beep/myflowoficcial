@@ -30,7 +30,7 @@ ContentZavod/
 │
 ├── 📄 README.md                      ✅ Главный README
 ├── 📄 GETTING_STARTED.md             ✅ Руководство для новичков
-├── 📄 CHANGELOG.md                   ✅ История изменений
+├── 📄 PATCHES.md                     ✅ Патчи и история изменений
 ├── 📄 PROJECT_STATUS.md              ✅ Этот файл
 │
 ├── 📚 Документация
@@ -282,7 +282,7 @@ python -c "from Блоки.интеграции_ии import GRSAIClient; client 
 Если возникли вопросы:
 1. Проверьте [GETTING_STARTED.md](GETTING_STARTED.md)
 2. Посмотрите [Troubleshooting](Блоки/интеграции_ии/README.md#troubleshooting)
-3. Изучите [CHANGELOG.md](CHANGELOG.md)
+3. Изучите [PATCHES.md](PATCHES.md)
 
 ---
 
