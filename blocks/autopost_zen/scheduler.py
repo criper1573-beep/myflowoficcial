@@ -262,6 +262,9 @@ def run_scheduler_loop() -> None:
             LOG.info("Запуск слота в %s", next_slot.strftime("%Y-%m-%d %H:%M"))
             _run_one_slot()
             _write_schedule_state(last_run_at=datetime.now())
+            # Сразу записать следующий слот, чтобы в дашборде не показывалось прошедшее время
+            next_after = _get_next_slot()
+            _write_schedule_state(next_run_at=next_after)
         except KeyboardInterrupt:
             LOG.info("Планировщик остановлен по Ctrl+C")
             break
