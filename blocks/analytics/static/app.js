@@ -9,6 +9,14 @@
     vc_ru: 'VC.ru',
     generation: 'Generation',
   };
+  const SOURCE_LABELS = {
+    schedule: 'Автопостинг Дзен',
+    google_sheets: 'Таблица',
+    file: 'Файл',
+  };
+  function sourceLabel(source) {
+    return SOURCE_LABELS[source] || source || '—';
+  }
   const INITIAL_RUNS_VISIBLE = 3;
   const INITIAL_SERVICES_VISIBLE = 10;
 
@@ -231,6 +239,7 @@
           '<span class="text-xs px-2 py-0.5 rounded ' +
           (run.status === 'completed' ? 'bg-green-900/50 text-green-300' : run.status === 'failed' ? 'bg-red-900/50 text-red-300' : 'bg-gray-600 text-gray-300') +
           '">' + (run.status === 'running' ? 'выполняется' : run.status === 'completed' ? 'успех' : 'ошибка') + '</span>' +
+          (run.source ? '<span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400" title="Источник">' + escapeHtml(sourceLabel(run.source)) + '</span>' : '') +
           '</div>' +
           '<p class="text-gray-400 text-sm mb-3">' + escapeHtml(topic) + '</p>' +
           '<div class="flex flex-wrap gap-2 sm:gap-3 items-center">' + stepsHtml + '</div>' +
