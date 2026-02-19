@@ -18,7 +18,7 @@
     return SOURCE_LABELS[source] || source || '—';
   }
   const INITIAL_RUNS_VISIBLE = 3;
-  const INITIAL_SERVICES_VISIBLE = 10;
+  const INITIAL_SERVICES_VISIBLE = 3;
 
   let currentProject = 'flow';
   let currentChannel = '';
@@ -311,44 +311,71 @@
       var btn = document.getElementById('btn-services-more');
       if (btn) btn.textContent = isExpanded ? 'Скрыть' : 'Показать больше';
     }
+    function formatScheduleDt(iso) {
+      if (!iso) return '';
+      try {
+        var d = new Date(iso);
+        return isNaN(d.getTime()) ? iso : d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch (e) { return iso; }
+    }
     wrap.innerHTML = toShow
       .map(function (s) {
         var state = (s.active_state && String(s.active_state).toLowerCase()) || '';
         var isActive = state === 'active' || state === 'running';
-        var isLocal = s.active_state === 'n/a';
-        var bg = isActive ? 'bg-gray-800 border-2 border-green-500' : (isLocal ? 'bg-gray-800 border border-gray-600' : 'bg-gray-800 border-2 border-red-500');
-        var dot = isActive ? 'bg-green-500 shadow-sm shadow-green-500/50' : (isLocal ? 'bg-gray-500' : 'bg-red-500');
-        var rawState = isActive ? (s.sub_state || 'работает') : (isLocal ? (s.sub_state || 'локальный режим') : (s.active_state || 'остановлен'));
+        var isLocalItem = s.active_state === 'n/a';
+        var dot = isActive ? 'bg-green-500 shadow-sm shadow-green-500/50' : (isLocalItem ? 'bg-gray-500' : 'bg-red-500');
+        var rawState = isActive ? (s.sub_state || 'работает') : (isLocalItem ? (s.sub_state || 'локальный режим') : (s.active_state || 'остановлен'));
         var stateText = (rawState === 'running') ? 'работает' : rawState;
-        var pid = s.pid && s.pid !== '0' ? 'PID ' + s.pid : '';
+        var pid = s.pid && s.pid !== '0' ? ' · PID ' + s.pid : '';
         var desc = (s.description || '').trim();
         var url = (s.url && String(s.url).trim()) || '';
-        var btnHtml = url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block px-3 py-1.5 rounded text-sm font-medium bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors">Открыть сайт</a>' : '';
+        var lastRun = s.last_run_at ? formatScheduleDt(s.last_run_at) : '';
+        var nextRun = s.next_run_at ? formatScheduleDt(s.next_run_at) : '';
+        var scheduleLine = (lastRun || nextRun) ? (lastRun ? 'Последний: ' + lastRun : '') + (lastRun && nextRun ? ' · ' : '') + (nextRun ? 'След.: ' + nextRun : '') : '';
+        var openBtn = url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600">Открыть сайт</a>' : '';
+        var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>';
         return (
-          '<div class="rounded-lg p-4 border ' +
-          bg +
-          '">' +
-          '<div class="flex items-center gap-2 mb-1">' +
-          '<span class="w-2 h-2 rounded-full ' +
-          dot +
-          '"></span>' +
-          '<span class="font-medium text-white">' +
-          (s.label || s.unit) +
-          '</span>' +
+          '<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-3 rounded-lg border border-gray-700 bg-gray-800 hover:border-gray-600">' +
+          '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '" aria-hidden="true"></span>' +
+          '<div class="flex-1 min-w-0">' +
+          '<div class="font-medium text-white">' + escapeHtml(s.label || s.unit) + '</div>' +
+          (desc ? '<div class="text-sm text-gray-400 truncate" title="' + escapeAttr(desc) + '">' + escapeHtml(desc) + '</div>' : '') +
+          '<div class="text-xs text-gray-500">' + stateText + pid + (scheduleLine ? ' · ' + scheduleLine : '') + '</div>' +
+          '<div class="text-xs text-gray-500 mt-0.5">' + s.unit + '</div>' +
           '</div>' +
-          (desc ? '<p class="text-sm text-gray-400 mt-1 mb-2">' + escapeHtml(desc) + '</p>' : '') +
-          '<div class="text-sm text-gray-400">' +
-          stateText +
-          (pid ? ' · ' + pid : '') +
-          '</div>' +
-          (btnHtml ? '<div class="mt-2">' + btnHtml + '</div>' : '') +
-          '<div class="text-xs text-gray-500 mt-1">' +
-          s.unit +
+          '<div class="flex flex-wrap items-center gap-2 flex-shrink-0">' +
+          startStop +
+          openBtn +
           '</div>' +
           '</div>'
         );
       })
       .join('');
+
+    wrap.querySelectorAll('.service-start').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var unit = btn.getAttribute('data-unit');
+        if (!unit) return;
+        btn.disabled = true;
+        fetch(API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/start'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+          .then(function () { loadServerServices(); })
+          .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
+          .finally(function () { btn.disabled = false; });
+      });
+    });
+    wrap.querySelectorAll('.service-stop').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var unit = btn.getAttribute('data-unit');
+        if (!unit) return;
+        btn.disabled = true;
+        fetch(API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/stop'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+          .then(function () { loadServerServices(); })
+          .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
+          .finally(function () { btn.disabled = false; });
+      });
+    });
   }
 
   async function loadServerServices() {

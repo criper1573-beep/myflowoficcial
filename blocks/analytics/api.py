@@ -216,6 +216,24 @@ SERVER_SERVICES = [
 ]
 
 
+# Корень проекта (для чтения storage/zen_schedule_state.json)
+_PROJECT_ROOT = BLOCK_DIR.parent.parent
+_ZEN_SCHEDULE_STATE_FILE = _PROJECT_ROOT / "storage" / "zen_schedule_state.json"
+
+
+def _get_zen_schedule_state() -> dict:
+    """Прочитать last_run_at и next_run_at для карточки Автопостинг Дзен."""
+    if not _ZEN_SCHEDULE_STATE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(_ZEN_SCHEDULE_STATE_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        return {k: data[k] for k in ("last_run_at", "next_run_at") if data.get(k)}
+    except Exception:
+        return {}
+
+
 def _service_public_url(unit: str) -> str | None:
     """Публичный URL сервиса (для кнопки «Открыть сайт» в плашке)."""
     u = (unit or "").strip()
@@ -259,7 +277,7 @@ def api_server_services():
         for item in SERVER_SERVICES:
             unit, label = item[0], item[1]
             description = item[2] if len(item) > 2 else ""
-            result_local.append({
+            s = {
                 "unit": unit,
                 "label": label,
                 "description": description,
@@ -267,7 +285,10 @@ def api_server_services():
                 "sub_state": "Локальный режим — статус только на сервере",
                 "pid": None,
                 "url": _service_public_url(unit),
-            })
+            }
+            if unit == "zen-schedule":
+                s.update(_get_zen_schedule_state())
+            result_local.append(s)
         return {"services": result_local, "note": "Статус сервисов отображается только при запуске на Linux-сервере."}
     result = []
     for item in SERVER_SERVICES:
@@ -356,7 +377,61 @@ def api_server_services():
         except Exception as e:
             logger.warning("systemctl show %s: %s", unit, e)
             result.append({"unit": unit, "label": label, "description": description, "active_state": "error", "sub_state": str(e), "pid": None, "url": _service_public_url(unit)})
+    # Для zen-schedule добавить last_run_at и next_run_at из state-файла планировщика
+    for s in result:
+        if s.get("unit") == "zen-schedule":
+            s.update(_get_zen_schedule_state())
+            break
     return {"services": result}
+
+
+ALLOWED_SERVICE_UNITS = {u[0] for u in SERVER_SERVICES}
+
+
+@app.post("/api/server-services/{unit}/start")
+def api_server_service_start(unit: str):
+    """Запустить systemd-сервис (только на Linux, unit из разрешённого списка)."""
+    if sys.platform != "linux":
+        raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере")
+    if unit not in ALLOWED_SERVICE_UNITS:
+        raise HTTPException(status_code=400, detail="Сервис не в списке")
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "systemctl", "start", unit],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if out.returncode != 0:
+            raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl start")
+        return {"ok": True, "unit": unit}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Таймаут")
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="systemctl/sudo недоступен")
+
+
+@app.post("/api/server-services/{unit}/stop")
+def api_server_service_stop(unit: str):
+    """Остановить systemd-сервис (только на Linux, unit из разрешённого списка)."""
+    if sys.platform != "linux":
+        raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере")
+    if unit not in ALLOWED_SERVICE_UNITS:
+        raise HTTPException(status_code=400, detail="Сервис не в списке")
+    try:
+        out = subprocess.run(
+            ["sudo", "-n", "systemctl", "stop", unit],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if out.returncode != 0:
+            raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl stop")
+        return {"ok": True, "unit": unit}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Таймаут")
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="systemctl/sudo недоступен")
 
 
 # --- Generation: статистика по картинкам и ссылкам (grs_image_web) ---

@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Optional
 
 from . import config
+
+ZEN_SCHEDULE_STATE_FILE = config.PROJECT_ROOT / "storage" / "zen_schedule_state.json"
 from .zen_client import run_post_flow, PUBLISH_DIR
 
 LOG = logging.getLogger("autopost_zen.scheduler")
@@ -83,6 +85,28 @@ def _get_next_slot() -> datetime:
     tomorrow = date.today() + timedelta(days=1)
     h1, m1, h2, m2 = SCHEDULE_WINDOWS[0]
     return _random_time_in_window(tomorrow, h1, m1, h2, m2)
+
+
+def _read_schedule_state() -> dict:
+    """Прочитать состояние планировщика (last_run_at, next_run_at в ISO)."""
+    if not ZEN_SCHEDULE_STATE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(ZEN_SCHEDULE_STATE_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_schedule_state(*, next_run_at: datetime | None = None, last_run_at: datetime | None = None) -> None:
+    """Обновить состояние планировщика (для дашборда)."""
+    state = _read_schedule_state()
+    if next_run_at is not None:
+        state["next_run_at"] = next_run_at.isoformat()
+    if last_run_at is not None:
+        state["last_run_at"] = last_run_at.isoformat()
+    ZEN_SCHEDULE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ZEN_SCHEDULE_STATE_FILE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
 
 
 def _run_one_slot() -> None:
@@ -233,9 +257,11 @@ def run_scheduler_loop() -> None:
     while True:
         try:
             next_slot = _get_next_slot()
+            _write_schedule_state(next_run_at=next_slot)
             _sleep_until(next_slot)
             LOG.info("Запуск слота в %s", next_slot.strftime("%Y-%m-%d %H:%M"))
             _run_one_slot()
+            _write_schedule_state(last_run_at=datetime.now())
         except KeyboardInterrupt:
             LOG.info("Планировщик остановлен по Ctrl+C")
             break

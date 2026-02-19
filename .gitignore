@@ -24,6 +24,7 @@ storage/content/
 storage/images/
 storage/logs/
 storage/*.db
+storage/zen_schedule_state.json
 *.log
 blocks/spambot/newsbot_posted.json
 blocks/grs_image_web/users.json
