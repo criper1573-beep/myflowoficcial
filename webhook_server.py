@@ -24,7 +24,7 @@ LOG_FILE = PROJECT_DIR / 'storage' / 'webhook.log'
 
 # Ветки и окружения: ref -> (project_dir, services)
 DEPLOY_MAIN_DIR = PROJECT_DIR
-DEPLOY_MAIN_SERVICES = ['analytics-dashboard', 'grs-image-web']
+DEPLOY_MAIN_SERVICES = ['analytics-dashboard', 'grs-image-web', 'zen-schedule']
 DEPLOY_STAGING_SERVICES = ['analytics-dashboard-staging', 'grs-image-web-staging']
 
 # Директория для логов должна существовать до настройки FileHandler
@@ -203,7 +203,7 @@ class WebhookHandler(BaseHTTPRequestHandler):
                     [str(venv_python), '-m', 'pip', 'install', '-q', '-r', 'docs/config/requirements.txt'],
                     cwd=str(project_dir), timeout=120, check=False, capture_output=True
                 )
-                for req_name in ('blocks/analytics/requirements.txt', 'blocks/grs_image_web/requirements.txt'):
+                for req_name in ('blocks/analytics/requirements.txt', 'blocks/grs_image_web/requirements.txt', 'blocks/autopost_zen/requirements.txt'):
                     req_path = project_dir / req_name
                     if req_path.exists():
                         subprocess.run(

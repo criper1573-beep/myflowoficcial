@@ -1,0 +1,24 @@
+# Юнит systemd для планировщика автопостинга Дзен (5 слотов в день).
+# Подставь: ТВОЙ_ПОЛЬЗОВАТЕЛЬ и /путь/к/проекту (например /root/contentzavod).
+# На сервере в .env должны быть: ZEN_STORAGE_STATE, ZEN_EDITOR_URL, GOOGLE_CREDENTIALS_PATH, GRS_AI_*, и т.д. (см. docs/rules/KEYS_AND_TOKENS.md). Рекомендуется ZEN_HEADLESS=true.
+# Playwright: один раз в venv выполнить playwright install chromium.
+# Разместить: sudo cp docs/scripts/deploy_beget/zen-schedule.service.example /etc/systemd/system/zen-schedule.service && sudo nano ... (подставить User, WorkingDirectory, пути)
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable zen-schedule && sudo systemctl start zen-schedule
+
+[Unit]
+Description=КонтентЗавод — планировщик автопостинга Дзен (5 публикаций в день)
+After=network.target
+
+[Service]
+Type=simple
+User=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+Group=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+WorkingDirectory=/путь/к/проекту
+Environment="PYTHONPATH=/путь/к/проекту"
+EnvironmentFile=/путь/к/проекту/.env
+ExecStart=/путь/к/проекту/venv/bin/python -m blocks.autopost_zen --schedule
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

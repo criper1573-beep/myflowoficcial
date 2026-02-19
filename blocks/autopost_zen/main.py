@@ -6,6 +6,7 @@ CLI автопостинга в Дзен: --file, --auto, --publish, --headless,
 Запуск:
   python -m blocks.autopost_zen --file articles/article.json [--publish]
   python -m blocks.autopost_zen --auto --publish   # генерация из Google Sheets + публикация
+  python -m blocks.autopost_zen --schedule        # регулярные публикации: 5 слотов в день по расписанию
 """
 import argparse
 import asyncio
@@ -259,10 +260,17 @@ def main() -> int:
                         help="Только подготовить: перенести статью в publish/N/")
     parser.add_argument("--headless", action="store_true", help="Запуск браузера без окна")
     parser.add_argument("--keep-open", action="store_true", help="Не закрывать браузер")
+    parser.add_argument("--schedule", "-s", action="store_true",
+                        help="Режим планировщика: 5 публикаций в день в заданных временных окнах")
     args = parser.parse_args()
 
     log_file = config.BLOCK_DIR / "autopost_debug.log"
     setup_logging(log_file)
+
+    if args.schedule:
+        from .scheduler import run_scheduler_loop
+        run_scheduler_loop()
+        return 0
 
     if args.auto:
         return _run_auto(args)

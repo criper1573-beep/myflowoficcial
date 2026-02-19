@@ -11,6 +11,7 @@
     "zen:delete": "python blocks/autopost_zen/zen_api_client.py delete --count 3",
     "zen:direct:publish": "python -m blocks.autopost_zen --file blocks/autopost_zen/articles/article_to_publish.json --publish",
     "zen:direct:delete": "python -m blocks.autopost_zen --delete-only --delete-count 3",
+    "zen:schedule": "python -m blocks.autopost_zen --schedule",
     "mcp": "python -m blocks.mcp_server"
   }
 }

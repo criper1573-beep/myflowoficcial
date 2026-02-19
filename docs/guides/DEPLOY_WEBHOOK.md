@@ -14,7 +14,7 @@
 
 ## Что уже есть в проекте
 
-- **webhook_server.py** (в корне) — HTTP-сервер (порт по умолчанию 3000, задаётся через `WEBHOOK_PORT`), endpoint `/webhook`, проверка подписи GitHub, при событии `push`: `git pull` (ветка из `DEPLOY_BRANCH`, по умолчанию `main`), `pip install` в venv по `docs/config/requirements.txt` и requirements блоков analytics/grs_image_web, перезапуск systemd-сервисов.
+- **webhook_server.py** (в корне) — HTTP-сервер (порт по умолчанию 3000, задаётся через `WEBHOOK_PORT`), endpoint `/webhook`, проверка подписи GitHub, при событии `push`: `git pull` (ветка из `DEPLOY_BRANCH`, по умолчанию `main`), `pip install` в venv по `docs/config/requirements.txt` и requirements блоков analytics/grs_image_web, перезапуск systemd-сервисов (analytics-dashboard, grs-image-web, zen-schedule).
 - **github-webhook.service** — пример юнита systemd для запуска вебхука.
 - **docs/scripts/deploy_beget/setup_webhook.sh** — скрипт установки вебхука на VPS (пути и пользователь подставить свои).
 
@@ -40,8 +40,10 @@
 
 5. **Разрешить перезапуск сервисов без пароля (для пользователя, от которого крутится вебхук):**  
    `sudo visudo` (или файл в `/etc/sudoers.d/`), добавить строку (подставь своего пользователя):  
-   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web`  
+   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web, /usr/bin/systemctl restart zen-schedule`  
    Иначе вебхук сделает только `git pull` и `pip install`, а перезапуск systemd не выполнится (в логах будет предупреждение).
+
+   **Планировщик Дзен (zen-schedule):** при первом деплое сервис нужно один раз установить на VPS: скопировать `docs/scripts/deploy_beget/zen-schedule.service.example` в `/etc/systemd/system/zen-schedule.service`, подставить пользователя и путь к проекту, в .env задать переменные автопостинга (ZEN_STORAGE_STATE, GOOGLE_CREDENTIALS_PATH, GRS_AI_* и т.д.), выполнить `playwright install chromium` в venv, затем `sudo systemctl daemon-reload && sudo systemctl enable zen-schedule && sudo systemctl start zen-schedule`. После этого вебхук при каждом push будет перезапускать zen-schedule вместе с остальными сервисами. Запуски публикаций пишутся в ту же БД аналитики, что и дашборд — статистика отображается в дашборде.
 
 6. **Настроить вебхук в GitHub:**  
    Repo → Settings → Webhooks → Add webhook:  

@@ -13,6 +13,7 @@ if [ -d venv ]; then
   source venv/bin/activate
   pip install -q -r docs/config/requirements.txt 2>/dev/null || true
   pip install -q -r blocks/analytics/requirements.txt
+  pip install -q -r blocks/autopost_zen/requirements.txt 2>/dev/null || true
   deactivate
 fi
 
@@ -26,6 +27,11 @@ fi
 if systemctl is-active --quiet grs-image-web 2>/dev/null; then
   sudo systemctl restart grs-image-web
   echo "Сервис grs-image-web перезапущен."
+fi
+
+if systemctl is-active --quiet zen-schedule 2>/dev/null; then
+  sudo systemctl restart zen-schedule
+  echo "Сервис zen-schedule перезапущен."
 fi
 
 echo "Готово."
