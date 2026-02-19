@@ -37,6 +37,7 @@ SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики"),
     ("analytics-telegram-bot", "Telegram-бот дашборда"),
     ("grs-image-web", "Генерация картинок и ссылок"),
+    ("zen-schedule", "Автопостинг Дзен"),
     ("spambot", "Спамбот (NewsBot)"),
     ("quickpack", "Quickpack"),
 ]
