@@ -1,0 +1,23 @@
+# Юнит systemd для мониторинга Telegram-канала (Telethon).
+# Ловит новые сообщения с заголовком TELEGRAM_MONITOR_HEADER, шлёт уведомления в TELEGRAM_MONITOR_ALERT_CHAT_ID.
+# Подставь: ТВОЙ_ПОЛЬЗОВАТЕЛЬ и /путь/к/проекту (например root и /root/contentzavod)
+# Разместить: sudo cp telegram-monitor.service.example /etc/systemd/system/telegram-monitor.service
+# Редактировать: sudo nano /etc/systemd/system/telegram-monitor.service
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable telegram-monitor && sudo systemctl start telegram-monitor
+
+[Unit]
+Description=КонтентЗавод — мониторинг Telegram-канала (zakazyff и др.)
+After=network.target
+
+[Service]
+Type=simple
+User=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+Group=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+WorkingDirectory=/путь/к/проекту
+Environment="PYTHONPATH=/путь/к/проекту"
+ExecStart=/путь/к/проекту/venv/bin/python -m blocks.telegram_chat_reader monitor
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

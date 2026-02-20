@@ -25,6 +25,9 @@ storage/images/
 storage/logs/
 storage/*.db
 storage/zen_schedule_state.json
+storage/telegram_sessions/
+*.session
+*.session-journal
 *.log
 blocks/spambot/newsbot_posted.json
 blocks/grs_image_web/users.json
