@@ -2,9 +2,9 @@
 # Разовое закрытие зависших запусков 34–37 в БД аналитики (чтобы не портилась статистика).
 # Запуск на сервере: cd /root/contentzavod && bash docs/scripts/deploy_beget/close_stuck_runs_once.sh
 set -e
-# Перейти в корень репо: из docs/scripts/deploy_beget вверх на 4 уровня
+# Перейти в корень репо: из docs/scripts/deploy_beget вверх на 3 уровня
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$ROOT"
 # Путь к БД как в blocks/analytics/db.py (по умолчанию storage/analytics.db или из .env)
 if [ -n "$ANALYTICS_DB_PATH" ]; then
