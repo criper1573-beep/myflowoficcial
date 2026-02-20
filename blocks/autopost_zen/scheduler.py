@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import random
+import signal
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -50,6 +51,7 @@ RETRY_DELAYS_SEC = [0, 60, 180]  # сразу, через 1 мин, через 3
 MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 7200  # 2 часа
 # Жёсткий таймаут на шаг публикации в Дзен, чтобы run не зависал бесконечно в статусе running.
 ZEN_PUBLISH_TIMEOUT_SEC = int(os.getenv("ZEN_PUBLISH_TIMEOUT_SEC", "900"))  # 15 минут
+ORCHESTRATOR_TAKEOVER_WAIT_SEC = 12  # ожидание после SIGTERM старому процессу
 
 
 def _random_time_in_window(base_date: date, h1: int, m1: int, h2: int, m2: int) -> datetime:
@@ -327,24 +329,100 @@ def _acquire_orchestrator_lock():
     """
     Эксклюзивная блокировка: только один процесс оркестратора может работать.
     Возвращает открытый файл (держать до конца работы) или None если lock недоступен (Windows).
-    При занятом lock выходит из процесса (sys.exit(0)).
+    Если lock занят — новый процесс пытается завершить старый orchestrator (takeover) и занять lock.
     """
     ORCHESTRATOR_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    def _read_lock_pid() -> Optional[int]:
+        try:
+            raw = ORCHESTRATOR_LOCK_FILE.read_text(encoding="utf-8").strip()
+            return int(raw) if raw.isdigit() else None
+        except Exception:
+            return None
+
+    def _is_process_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+
+    def _is_orchestrator_process(pid: int) -> bool:
+        try:
+            cmdline_path = Path(f"/proc/{pid}/cmdline")
+            if not cmdline_path.exists():
+                return False
+            cmdline = cmdline_path.read_bytes().replace(b"\x00", b" ").decode("utf-8", errors="ignore")
+            return "blocks.autopost_zen" in cmdline and "--schedule" in cmdline
+        except Exception:
+            return False
+
+    def _terminate_old_orchestrator(pid: int) -> None:
+        if pid <= 0 or pid == os.getpid():
+            return
+        if not _is_process_alive(pid):
+            return
+        if not _is_orchestrator_process(pid):
+            LOG.error("Lock занят процессом PID=%s, но это не blocks.autopost_zen --schedule. Takeover отменён.", pid)
+            return
+        LOG.warning("Найден старый процесс оркестратора PID=%s. Останавливаю его для takeover.", pid)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+        except Exception as e:
+            LOG.warning("Не удалось отправить SIGTERM PID=%s: %s", pid, e)
+            return
+
+        deadline = time.time() + ORCHESTRATOR_TAKEOVER_WAIT_SEC
+        while time.time() < deadline:
+            if not _is_process_alive(pid):
+                return
+            time.sleep(0.5)
+
+        if _is_process_alive(pid):
+            LOG.warning("PID=%s не завершился после SIGTERM. Отправляю SIGKILL.", pid)
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception as e:
+                LOG.warning("Не удалось отправить SIGKILL PID=%s: %s", pid, e)
+
     try:
         import fcntl
-        f = open(ORCHESTRATOR_LOCK_FILE, "w", encoding="utf-8")
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return f
-    except BlockingIOError:
-        LOG.error("Другой экземпляр оркестратора уже запущен (lock %s). Выход.", ORCHESTRATOR_LOCK_FILE)
-        try:
-            f.close()
-        except Exception:
-            pass
-        sys.exit(0)
-    except (ImportError, OSError) as e:
+    except ImportError as e:
         LOG.warning("Блокировка оркестратора недоступна (не Linux?): %s. Продолжаем без lock.", e)
         return None
+
+    for attempt in (1, 2):
+        f = open(ORCHESTRATOR_LOCK_FILE, "a+", encoding="utf-8")
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            f.seek(0)
+            f.truncate()
+            f.write(str(os.getpid()))
+            f.flush()
+            return f
+        except BlockingIOError:
+            f.close()
+            if attempt == 1:
+                old_pid = _read_lock_pid()
+                if old_pid:
+                    _terminate_old_orchestrator(old_pid)
+                else:
+                    LOG.warning("Lock занят, PID в lock-файле не прочитан. Повторная попытка takeover.")
+                time.sleep(1)
+                continue
+            LOG.error("Не удалось занять lock %s после takeover. Выход.", ORCHESTRATOR_LOCK_FILE)
+            sys.exit(0)
+        except OSError as e:
+            f.close()
+            LOG.warning("Ошибка lock-файла %s: %s. Продолжаем без lock.", ORCHESTRATOR_LOCK_FILE, e)
+            return None
+
+    LOG.error("Не удалось занять lock %s. Выход.", ORCHESTRATOR_LOCK_FILE)
+    sys.exit(0)
 
 
 def run_scheduler_loop() -> None:
