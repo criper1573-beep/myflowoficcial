@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import config
+from blocks.analytics import db as analytics_db
 
 ORCHESTRATOR_KZ_STATE_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
 ORCHESTRATOR_LOCK_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz.lock"
@@ -163,6 +164,45 @@ def _append_failed_publication(
         )
     except Exception as e:
         LOG.warning("Не удалось записать в failed_publications.jsonl: %s", e)
+
+
+def _close_stale_schedule_runs() -> None:
+    """
+    Закрывает «висящие» schedule-запуски как failed.
+    Нужен после рестарта/kill: старый процесс может умереть до finish_run(),
+    и в дашборде остаётся второй синий запуск на «Генерация статьи».
+    """
+    project = (os.getenv("ANALYTICS_PROJECT") or analytics_db.DEFAULT_PROJECT).strip()
+    if project not in analytics_db.PROJECTS:
+        project = analytics_db.DEFAULT_PROJECT
+    conn = None
+    try:
+        conn = analytics_db.get_connection(project=project)
+        stale = conn.execute(
+            "SELECT id FROM runs WHERE status = 'running' AND source = 'schedule' ORDER BY id"
+        ).fetchall()
+        stale_ids = [int(r[0]) for r in stale]
+        if not stale_ids:
+            return
+        now = datetime.now().isoformat()
+        err = (
+            "Остановлено автоматически при перезапуске оркестратора: "
+            "предыдущий process был завершён до finish_run()."
+        )
+        for run_id in stale_ids:
+            step_ids = conn.execute(
+                "SELECT id FROM steps WHERE run_id = ? AND status IN ('running','pending')",
+                (run_id,),
+            ).fetchall()
+            for row in step_ids:
+                analytics_db.update_step_finished(conn, int(row[0]), now, "failed", error_message=err)
+            analytics_db.update_run_finished(conn, run_id, now, "failed")
+        LOG.warning("Закрыты stale schedule-запуски как failed: %s", stale_ids)
+    except Exception as e:
+        LOG.warning("Не удалось закрыть stale schedule-запуски: %s", e)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _run_one_slot() -> None:
@@ -433,6 +473,7 @@ def run_scheduler_loop() -> None:
     Только один экземпляр оркестратора может работать (файловая блокировка на Linux).
     """
     _lock_file = _acquire_orchestrator_lock()  # держим ссылку, чтобы файл не закрылся и lock не снялся
+    _close_stale_schedule_runs()
 
     # Проверка Telegram при старте: если не заданы токены — в логах будет видно (на сервере скопировать .env с компа)
     try:
