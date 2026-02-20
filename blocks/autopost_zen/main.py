@@ -6,7 +6,7 @@ CLI автопостинга в Дзен: --file, --auto, --publish, --headless,
 Запуск:
   python -m blocks.autopost_zen --file articles/article.json [--publish]
   python -m blocks.autopost_zen --auto --publish   # генерация из Google Sheets + публикация
-  python -m blocks.autopost_zen --schedule        # регулярные публикации: 5 слотов в день по расписанию
+  python -m blocks.autopost_zen --schedule        # оркестратор контент завода: пробный запуск при старте + 5 слотов в день
 """
 import argparse
 import asyncio
@@ -106,9 +106,9 @@ def _run_auto(args) -> int:
             def do_telegram():
                 import os
                 from blocks.lifehacks_to_spambot.run import post_article_to_telegram_sync
-                ok = post_article_to_telegram_sync(article_dir, project_id=os.getenv("PROJECT_ID"))
+                ok, err_msg = post_article_to_telegram_sync(article_dir, project_id=os.getenv("PROJECT_ID"))
                 if not ok:
-                    raise RuntimeError("Публикация в Telegram не удалась")
+                    raise RuntimeError("Публикация в Telegram не удалась" + (f": {err_msg}" if err_msg else ""))
             step("publish_telegram", "Публикация в Telegram", do_telegram)
             telegram_ok = True
         except Exception as e:
@@ -261,7 +261,7 @@ def main() -> int:
     parser.add_argument("--headless", action="store_true", help="Запуск браузера без окна")
     parser.add_argument("--keep-open", action="store_true", help="Не закрывать браузер")
     parser.add_argument("--schedule", "-s", action="store_true",
-                        help="Режим планировщика: 5 публикаций в день в заданных временных окнах")
+                        help="Оркестратор контент завода: пробный запуск при старте, затем 5 слотов в день по расписанию")
     args = parser.parse_args()
 
     log_file = config.BLOCK_DIR / "autopost_debug.log"

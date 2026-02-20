@@ -118,35 +118,66 @@ async def send_lifehack_post(
     return True
 
 
-def post_article_to_telegram_sync(article_dir: Path, project_id: Optional[str] = None) -> bool:
+async def send_lifehack_post_text_only(
+    bot_token: str,
+    channel_id: str,
+    text: str,
+) -> bool:
+    """Отправляет пост только текстом (без фото). Используется при TELEGRAM_ALLOW_NO_COVER и отсутствии обложки."""
+    from telegram import Bot
+    from telegram.constants import ParseMode
+    from telegram.request import HTTPXRequest
+
+    request = HTTPXRequest(read_timeout=60, write_timeout=60)
+    bot = Bot(token=bot_token, request=request)
+    await bot.send_message(
+        chat_id=channel_id,
+        text=text,
+        parse_mode=ParseMode.HTML,
+    )
+    return True
+
+
+def post_article_to_telegram_sync(
+    article_dir: Path, project_id: Optional[str] = None
+) -> Tuple[bool, Optional[str]]:
     """
     Публикует обложку и саммари статьи в Telegram. Вызывается из пайплайна autopost_zen.
     Использует telegram_summary из article.json (генерируется при сборке статьи).
-    Возвращает True при успехе, False при ошибке.
+    Возвращает (True, None) при успехе, (False, "причина ошибки") при ошибке.
     """
     try:
         article_data, _ = load_article(article_dir)
     except FileNotFoundError:
         logger.exception("article.json не найден в %s", article_dir)
-        return False
+        return False, f"article.json не найден в {article_dir}"
     title = article_data.get("title") or "Статья"
     summary = article_data.get("telegram_summary") or article_data.get("meta_description") or ""
     caption = build_caption(title, summary)
     cover_path = get_cover_path(article_data, article_dir)
-    if not cover_path:
-        logger.error("Обложка не найдена в %s", article_dir)
-        return False
     bot_token, channel_id = get_telegram_config(project_id or os.getenv("PROJECT_ID"))
     if not bot_token or not channel_id:
         logger.error("Не заданы TELEGRAM_BOT_TOKEN / TELEGRAM_CHANNEL_ID или проект")
-        return False
+        return False, "Не заданы TELEGRAM_BOT_TOKEN / TELEGRAM_CHANNEL_ID или проект"
+    if not cover_path:
+        allow_no_cover = os.getenv("TELEGRAM_ALLOW_NO_COVER", "").strip().lower() in ("1", "true", "yes")
+        if allow_no_cover:
+            try:
+                asyncio.run(send_lifehack_post_text_only(bot_token, channel_id, caption))
+                logger.info("Пост в Telegram отправлен без фото (TELEGRAM_ALLOW_NO_COVER): %s", title[:50])
+                return True, None
+            except Exception as e:
+                logger.exception("Ошибка отправки в Telegram (текст без фото): %s", e)
+                return False, str(e)
+        logger.error("Обложка не найдена в %s", article_dir)
+        return False, f"Обложка не найдена в {article_dir}"
     try:
         asyncio.run(send_lifehack_post(bot_token, channel_id, cover_path, caption))
         logger.info("Пост в Telegram отправлен: %s", title[:50])
-        return True
+        return True, None
     except Exception as e:
         logger.exception("Ошибка отправки в Telegram: %s", e)
-        return False
+        return False, str(e)
 
 
 def get_telegram_config(project_id: Optional[str]) -> Tuple[str, str]:
