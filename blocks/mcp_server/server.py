@@ -136,6 +136,43 @@ def grs_image(
         return {"success": False, "error": str(e)}
 
 
+# --- Telegram Chat Reader (Telethon) ---
+
+
+@mcp.tool()
+def telegram_chat_history(
+    entity: str = "zakazyff",
+    limit: int = 100,
+) -> dict:
+    """Выгрузить историю сообщений из Telegram-чата/канала.
+    entity — username (zakazyff), @username или t.me/zakazyff.
+    Требует TELEGRAM_API_ID, TELEGRAM_API_HASH и авторизацию:
+    python -m blocks.telegram_chat_reader login
+    """
+    try:
+        entity_clean = entity.strip()
+        if entity_clean.startswith("https://t.me/"):
+            entity_clean = entity_clean.replace("https://t.me/", "").strip("/")
+        if entity_clean.startswith("t.me/"):
+            entity_clean = entity_clean.replace("t.me/", "").strip("/")
+        if entity_clean.startswith("@"):
+            entity_clean = entity_clean[1:]
+        from blocks.telegram_chat_reader.client import fetch_chat_history
+        messages, error = asyncio.run(fetch_chat_history(entity_clean, limit=limit))
+        if error:
+            return {"success": False, "error": error, "messages": []}
+        return {
+            "success": True,
+            "entity": entity_clean,
+            "count": len(messages),
+            "messages": messages,
+        }
+    except ValueError as e:
+        return {"success": False, "error": str(e), "messages": []}
+    except Exception as e:
+        return {"success": False, "error": str(e), "messages": []}
+
+
 def main():
     mcp.run()
 

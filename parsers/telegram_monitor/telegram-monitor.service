@@ -1,0 +1,21 @@
+# Копия для ручной установки. Обычно setup.sh создаёт юнит автоматически.
+# Если нужна ручная настройка: подставь USER и пути, затем:
+# sudo cp parsers/telegram_monitor/telegram-monitor.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable telegram-monitor && sudo systemctl start telegram-monitor
+
+[Unit]
+Description=КонтентЗавод — мониторинг Telegram-канала
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/contentzavod
+Environment="PYTHONPATH=/root/contentzavod"
+ExecStart=/root/contentzavod/venv/bin/python -m blocks.telegram_chat_reader monitor
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
