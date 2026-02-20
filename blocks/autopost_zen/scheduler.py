@@ -43,6 +43,8 @@ SCHEDULE_WINDOWS = [
 ]
 
 RETRY_DELAYS_SEC = [0, 60, 180]  # сразу, через 1 мин, через 3 мин
+# Не делать повторный пробный запуск при старте, если уже был запуск недавно (защита от двойного рестарта при деплое)
+MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 60  # 1 минута
 
 
 def _random_time_in_window(base_date: date, h1: int, m1: int, h2: int, m2: int) -> datetime:
@@ -315,14 +317,32 @@ def run_scheduler_loop() -> None:
     (генерация → Telegram → Дзен), чтобы убедиться, что всё работает. Расписание — отдельно, после прогона.
     """
     LOG.info("Оркестратор контент завода: запущен. 5 слотов в день: 10:00–10:30, 11:30–12:00, 13:00–13:30, 14:00–14:30, 15:20–16:40")
-    # ОБЯЗАТЕЛЬНЫЙ пробный запуск цепочки сразу при старте (вне зависимости от расписания)
-    LOG.info("Оркестратор: обязательный пробный запуск цепочки при старте (вне расписания)…")
-    try:
-        _run_one_slot()
-        _write_schedule_state(last_run_at=datetime.now())
-        LOG.info("Оркестратор: пробный запуск завершён успешно. Переход к работе по расписанию.")
-    except Exception as e:
-        LOG.exception("Ошибка при пробном запуске: %s. Продолжаем по расписанию.", e)
+    # ОБЯЗАТЕЛЬНЫЙ пробный запуск при старте — пропускаем, если недавно уже был запуск (защита от двойного рестарта при деплое)
+    state = _read_schedule_state()
+    last_run_str = state.get("last_run_at")
+    skip_startup_run = False
+    if last_run_str:
+        try:
+            last_run = datetime.fromisoformat(last_run_str.replace("Z", "+00:00"))
+            if last_run.tzinfo:
+                last_run = last_run.astimezone().replace(tzinfo=None)
+            elapsed = (datetime.now() - last_run).total_seconds()
+            if elapsed >= 0 and elapsed < MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC:
+                skip_startup_run = True
+                LOG.info(
+                    "Оркестратор: пропуск пробного запуска при старте (последний запуск был %.0f мин назад, защита от двойного рестарта).",
+                    elapsed / 60,
+                )
+        except (ValueError, TypeError):
+            pass
+    if not skip_startup_run:
+        LOG.info("Оркестратор: обязательный пробный запуск цепочки при старте (вне расписания)…")
+        try:
+            _run_one_slot()
+            _write_schedule_state(last_run_at=datetime.now())
+            LOG.info("Оркестратор: пробный запуск завершён успешно. Переход к работе по расписанию.")
+        except Exception as e:
+            LOG.exception("Ошибка при пробном запуске: %s. Продолжаем по расписанию.", e)
     next_slot = _get_next_slot()
     _write_schedule_state(next_run_at=next_slot)
 
