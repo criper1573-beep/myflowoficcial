@@ -28,8 +28,22 @@ GRIS_IMAGE_WEB_DIR = _GRS_BASE
 GENERATED_DIR = Path(os.getenv("GRS_IMAGE_WEB_GENERATED_DIR")).resolve() if os.getenv("GRS_IMAGE_WEB_GENERATED_DIR") else (_GRS_BASE / "generated")
 UPLOADED_DIR = Path(os.getenv("GRS_IMAGE_WEB_UPLOADED_DIR")).resolve() if os.getenv("GRS_IMAGE_WEB_UPLOADED_DIR") else (_GRS_BASE / "uploaded")
 GRIS_IMAGE_WEB_PUBLIC_URL = os.getenv("GRS_IMAGE_WEB_PUBLIC_URL", "https://flowimage.ru").rstrip("/")
+GRS_IMAGE_WEB_INTERNAL_URL = (os.getenv("GRS_IMAGE_WEB_INTERNAL_URL") or "http://127.0.0.1:8765").strip().rstrip("/")
 ALLOWED_IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 USERS_JSON = _GRS_BASE / "users.json"
+
+
+def _ensure_generation_user_names(telegram_ids: set) -> None:
+    """Подтянуть имена для telegram_id без имени через API grs_image_web (getChat → users.json)."""
+    for tid in telegram_ids:
+        if tid == "0":
+            continue
+        try:
+            url = f"{GRS_IMAGE_WEB_INTERNAL_URL}/api/user/ensure_name/{tid}"
+            req = UrlRequest(url, method="GET")
+            urlopen(req, timeout=3)
+        except Exception:
+            pass
 
 
 def _load_generation_user_names() -> dict:
@@ -209,24 +223,24 @@ SERVER_SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики", "Веб-интерфейс: сводка запусков, графики и статус сервисов"),
     ("analytics-telegram-bot", "Telegram-бот дашборда", "Уведомления в Telegram о запусках и ошибках пайплайна"),
     ("grs-image-web", "Генерация картинок и ссылок", "Веб-интерфейс генерации изображений и загрузки ссылок (flowimage.ru)"),
-    ("zen-schedule", "Автопостинг Дзен", "Планировщик: 5 публикаций в Дзен в день по расписанию"),
+    ("orchestrator-kz", "Оркестратор контент завода", "Оркестратор: генерация и публикация (Дзен, Telegram) по расписанию; при старте — один пробный запуск"),
     ("spambot", "Спамбот (NewsBot)", "Публикации в каналы: Дзен, соцсети и др."),
     ("contentzavod-watchdog", "Watchdog", "Следит за сервисами и сообщает при сбоях"),
     ("quickpack", "Quickpack", "Сайт Quickpack на сервере"),
 ]
 
 
-# Корень проекта (для чтения storage/zen_schedule_state.json)
+# Корень проекта (для чтения storage/orchestrator_kz_state.json)
 _PROJECT_ROOT = BLOCK_DIR.parent.parent
-_ZEN_SCHEDULE_STATE_FILE = _PROJECT_ROOT / "storage" / "zen_schedule_state.json"
+_ORCHESTRATOR_KZ_STATE_FILE = _PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
 
 
-def _get_zen_schedule_state() -> dict:
-    """Прочитать last_run_at и next_run_at для карточки Автопостинг Дзен."""
-    if not _ZEN_SCHEDULE_STATE_FILE.exists():
+def _get_orchestrator_kz_state() -> dict:
+    """Прочитать last_run_at и next_run_at для карточки Оркестратор контент завода."""
+    if not _ORCHESTRATOR_KZ_STATE_FILE.exists():
         return {}
     try:
-        data = json.loads(_ZEN_SCHEDULE_STATE_FILE.read_text(encoding="utf-8"))
+        data = json.loads(_ORCHESTRATOR_KZ_STATE_FILE.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return {}
         return {k: data[k] for k in ("last_run_at", "next_run_at") if data.get(k)}
@@ -286,8 +300,8 @@ def api_server_services():
                 "pid": None,
                 "url": _service_public_url(unit),
             }
-            if unit == "zen-schedule":
-                s.update(_get_zen_schedule_state())
+            if unit == "orchestrator-kz":
+                s.update(_get_orchestrator_kz_state())
             result_local.append(s)
         return {"services": result_local, "note": "Статус сервисов отображается только при запуске на Linux-сервере."}
     result = []
@@ -377,10 +391,10 @@ def api_server_services():
         except Exception as e:
             logger.warning("systemctl show %s: %s", unit, e)
             result.append({"unit": unit, "label": label, "description": description, "active_state": "error", "sub_state": str(e), "pid": None, "url": _service_public_url(unit)})
-    # Для zen-schedule добавить last_run_at и next_run_at из state-файла планировщика
+    # Для orchestrator-kz добавить last_run_at и next_run_at из state-файла оркестратора
     for s in result:
-        if s.get("unit") == "zen-schedule":
-            s.update(_get_zen_schedule_state())
+        if s.get("unit") == "orchestrator-kz":
+            s.update(_get_orchestrator_kz_state())
             break
     return {"services": result}
 
@@ -479,6 +493,10 @@ def _generation_images_summary():
     days_sorted = sorted(by_day.keys(), reverse=True)[:90]
     by_day_list = [{"day": d, "count": by_day[d]} for d in days_sorted]
     names = _load_generation_user_names()
+    missing = {tid for tid in user_counts if tid != "0" and (not names.get(tid) or names.get(tid) == tid)}
+    if missing:
+        _ensure_generation_user_names(missing)
+        names = _load_generation_user_names()
     users_list = [
         {"telegramId": tid, "count": c, "name": names.get(tid) or tid}
         for tid, c in sorted(user_counts.items(), key=lambda x: -x[1])
@@ -508,6 +526,10 @@ def _generation_links_summary():
     days_sorted = sorted(by_day.keys(), reverse=True)[:90]
     by_day_list = [{"day": d, "count": by_day[d]} for d in days_sorted]
     names = _load_generation_user_names()
+    missing = {tid for tid in user_counts if tid != "0" and (not names.get(tid) or names.get(tid) == tid)}
+    if missing:
+        _ensure_generation_user_names(missing)
+        names = _load_generation_user_names()
     users_list = [
         {"telegramId": tid, "count": c, "name": names.get(tid) or tid}
         for tid, c in sorted(user_counts.items(), key=lambda x: -x[1])

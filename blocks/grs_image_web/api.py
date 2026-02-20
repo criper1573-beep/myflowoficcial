@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import time
+import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -46,10 +47,11 @@ COOKIE_MAX_AGE = 30 * 24 * 3600
 
 
 def _display_name_from_telegram_user(user: dict) -> str:
-    """Имя для отображения: first_name + last_name или username или ID."""
+    """Имя для отображения в дашборде: имя и фамилия из Telegram, иначе @username, иначе ID."""
     first = (user.get("first_name") or "").strip()
     last = (user.get("last_name") or "").strip()
     username = (user.get("username") or "").strip()
+    # Собираем имя и фамилию (всё, что есть в профиле Telegram)
     if first or last:
         return f"{first} {last}".strip() or first or last
     if username:
@@ -69,6 +71,47 @@ def _save_user_display_name(telegram_id: int, display_name: str) -> None:
             json.dump(data, f, ensure_ascii=False, indent=0)
     except Exception as e:
         logger.warning("Не удалось сохранить users.json: %s", e)
+
+
+def _fetch_telegram_display_name(telegram_id: int) -> str | None:
+    """Получить отображаемое имя по Telegram ID через Bot API getChat (если пользователь контактировал с ботом)."""
+    token = (os.getenv("TELEGRAM_BOT_TOKEN") or "").strip()
+    if not token:
+        return None
+    url = f"https://api.telegram.org/bot{token}/getChat?chat_id={telegram_id}"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception as e:
+        logger.debug("getChat для %s: %s", telegram_id, e)
+        return None
+    if not data.get("ok"):
+        return None
+    r = data.get("result") or {}
+    first = (r.get("first_name") or "").strip()
+    last = (r.get("last_name") or "").strip()
+    username = (r.get("username") or "").strip()
+    name = f"{first} {last}".strip() or first or last
+    return name or (f"@{username}" if username else str(telegram_id))
+
+
+def ensure_user_display_name(telegram_id: int) -> str | None:
+    """Если в users.json нет имени или оно пустое/равно ID — подтянуть через getChat и сохранить."""
+    try:
+        data = {}
+        if USERS_JSON.is_file():
+            with open(USERS_JSON, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+        current = (data.get(str(telegram_id)) or "").strip()
+        if current and current != str(telegram_id):
+            return current
+        name = _fetch_telegram_display_name(telegram_id)
+        if name:
+            _save_user_display_name(telegram_id, name)
+            return name
+    except Exception as e:
+        logger.warning("ensure_user_display_name %s: %s", telegram_id, e)
+    return None
 
 
 class GenerateRequest(BaseModel):
@@ -161,7 +204,10 @@ async def api_auth_telegram(request: Request, response: Response):
     except Exception:
         logger.exception("Failed to create generated dir for user %s", tid)
     # Сохраняем имя для дашборда аналитики (Generation)
-    _save_user_display_name(tid, _display_name_from_telegram_user(user))
+    name_from_widget = _display_name_from_telegram_user(user)
+    _save_user_display_name(tid, name_from_widget)
+    if not name_from_widget or name_from_widget == str(tid):
+        ensure_user_display_name(tid)
     response.set_cookie(COOKIE_NAME, token, httponly=True, max_age=COOKIE_MAX_AGE, path="/")
     return {"authenticated": True}
 
@@ -180,6 +226,19 @@ def api_me(request: Request):
 def api_logout(response: Response):
     response.delete_cookie(COOKIE_NAME, path="/")
     return {"ok": True}
+
+
+@app.get("/api/user/ensure_name/{telegram_id}")
+def api_user_ensure_name(telegram_id: str):
+    """Подтянуть имя пользователя по Telegram ID через Bot API и сохранить в users.json. Для дашборда аналитики."""
+    try:
+        tid = int(telegram_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid telegram_id")
+    name = ensure_user_display_name(tid)
+    return {"telegram_id": telegram_id, "name": name}
+
+
 @app.post("/api/improve-prompt")
 def api_improve_prompt(body: ImprovePromptRequest):
     """
