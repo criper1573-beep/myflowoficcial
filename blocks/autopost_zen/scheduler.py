@@ -19,6 +19,7 @@
 import asyncio
 import json
 import logging
+import os
 import random
 import sys
 import time
@@ -47,6 +48,8 @@ SCHEDULE_WINDOWS = [
 RETRY_DELAYS_SEC = [0, 60, 180]  # сразу, через 1 мин, через 3 мин
 # Не делать повторный пробный запуск при старте, если уже был запуск недавно (защита от лишних генераций при рестартах/деплоях)
 MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 7200  # 2 часа
+# Жёсткий таймаут на шаг публикации в Дзен, чтобы run не зависал бесконечно в статусе running.
+ZEN_PUBLISH_TIMEOUT_SEC = int(os.getenv("ZEN_PUBLISH_TIMEOUT_SEC", "900"))  # 15 минут
 
 
 def _random_time_in_window(base_date: date, h1: int, m1: int, h2: int, m2: int) -> datetime:
@@ -255,15 +258,23 @@ def _run_one_slot() -> None:
         try:
             def do_zen():
                 data = json.loads(article_path.read_text(encoding="utf-8"))
-                code, msg, _ = asyncio.run(
-                    run_post_flow(
-                        data,
-                        publish=data.get("publish", True),
-                        headless=config.HEADLESS,
-                        keep_open=config.KEEP_BROWSER_OPEN,
-                        article_path=article_path,
+                async def _run_zen_with_timeout():
+                    return await asyncio.wait_for(
+                        run_post_flow(
+                            data,
+                            publish=data.get("publish", True),
+                            headless=config.HEADLESS,
+                            keep_open=config.KEEP_BROWSER_OPEN,
+                            article_path=article_path,
+                        ),
+                        timeout=ZEN_PUBLISH_TIMEOUT_SEC,
                     )
-                )
+                try:
+                    code, msg, _ = asyncio.run(_run_zen_with_timeout())
+                except asyncio.TimeoutError as e:
+                    raise RuntimeError(
+                        f"Публикация в Дзен превысила таймаут {ZEN_PUBLISH_TIMEOUT_SEC} сек"
+                    ) from e
                 if code != 0:
                     raise RuntimeError(msg or "Публикация в Дзен не удалась")
             step("publish_zen", "Публикация в Дзен", do_zen, retries=True)

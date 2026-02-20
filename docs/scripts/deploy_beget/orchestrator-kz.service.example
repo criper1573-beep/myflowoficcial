@@ -19,7 +19,8 @@ Environment="PYTHONPATH=/путь/к/проекту"
 Environment="ZEN_HEADLESS=true"
 EnvironmentFile=/путь/к/проекту/.env
 ExecStart=/путь/к/проекту/venv/bin/python -m blocks.autopost_zen --schedule
-Restart=always
+# Важно: on-failure, чтобы при "lock already held" (чистый выход) не было бесконечного цикла рестартов.
+Restart=on-failure
 RestartSec=30
 
 [Install]
