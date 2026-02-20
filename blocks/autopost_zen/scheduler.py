@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import random
+import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -28,6 +29,7 @@ from typing import Optional
 from . import config
 
 ORCHESTRATOR_KZ_STATE_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
+ORCHESTRATOR_LOCK_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz.lock"
 FAILED_PUBLICATIONS_FILE = config.PROJECT_ROOT / "storage" / "failed_publications.jsonl"
 from .zen_client import run_post_flow, PUBLISH_DIR
 
@@ -43,8 +45,8 @@ SCHEDULE_WINDOWS = [
 ]
 
 RETRY_DELAYS_SEC = [0, 60, 180]  # сразу, через 1 мин, через 3 мин
-# Не делать повторный пробный запуск при старте, если уже был запуск недавно (защита от двойного рестарта при деплое)
-MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 60  # 1 минута
+# Не делать повторный пробный запуск при старте, если уже был запуск недавно (защита от лишних генераций при рестартах/деплоях)
+MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 7200  # 2 часа
 
 
 def _random_time_in_window(base_date: date, h1: int, m1: int, h2: int, m2: int) -> datetime:
@@ -310,14 +312,54 @@ def _run_one_slot() -> None:
         raise
 
 
+def _acquire_orchestrator_lock():
+    """
+    Эксклюзивная блокировка: только один процесс оркестратора может работать.
+    Возвращает открытый файл (держать до конца работы) или None если lock недоступен (Windows).
+    При занятом lock выходит из процесса (sys.exit(0)).
+    """
+    ORCHESTRATOR_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import fcntl
+        f = open(ORCHESTRATOR_LOCK_FILE, "w", encoding="utf-8")
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return f
+    except BlockingIOError:
+        LOG.error("Другой экземпляр оркестратора уже запущен (lock %s). Выход.", ORCHESTRATOR_LOCK_FILE)
+        try:
+            f.close()
+        except Exception:
+            pass
+        sys.exit(0)
+    except (ImportError, OSError) as e:
+        LOG.warning("Блокировка оркестратора недоступна (не Linux?): %s. Продолжаем без lock.", e)
+        return None
+
+
 def run_scheduler_loop() -> None:
     """
     Бесконечный цикл оркестратора.
     ОБЯЗАТЕЛЬНО: при каждом старте сервиса сначала выполняется один полный прогон цепочки
     (генерация → Telegram → Дзен), чтобы убедиться, что всё работает. Расписание — отдельно, после прогона.
+    Только один экземпляр оркестратора может работать (файловая блокировка на Linux).
     """
+    _lock_file = _acquire_orchestrator_lock()  # держим ссылку, чтобы файл не закрылся и lock не снялся
+
+    # Проверка Telegram при старте: если не заданы токены — в логах будет видно (на сервере скопировать .env с компа)
+    try:
+        import os
+        from blocks.lifehacks_to_spambot.run import get_telegram_config
+        _tg_token, _tg_channel = get_telegram_config(os.getenv("PROJECT_ID"))
+        if not _tg_token or not _tg_channel:
+            LOG.warning(
+                "TELEGRAM_BOT_TOKEN / TELEGRAM_CHANNEL_ID (или проект в blocks/projects) не заданы. "
+                "Публикация в Telegram будет падать. На сервере добавьте в .env те же переменные, что на компе (см. docs/rules/KEYS_AND_TOKENS.md)."
+            )
+    except Exception as e:
+        LOG.warning("Проверка Telegram при старте: %s", e)
+
     LOG.info("Оркестратор контент завода: запущен. 5 слотов в день: 10:00–10:30, 11:30–12:00, 13:00–13:30, 14:00–14:30, 15:20–16:40")
-    # ОБЯЗАТЕЛЬНЫЙ пробный запуск при старте — пропускаем, если недавно уже был запуск (защита от двойного рестарта при деплое)
+    # ОБЯЗАТЕЛЬНЫЙ пробный запуск при старте — пропускаем, если уже был запуск за последние 2 часа (защита от лишних генераций при рестартах)
     state = _read_schedule_state()
     last_run_str = state.get("last_run_at")
     skip_startup_run = False
@@ -330,7 +372,7 @@ def run_scheduler_loop() -> None:
             if elapsed >= 0 and elapsed < MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC:
                 skip_startup_run = True
                 LOG.info(
-                    "Оркестратор: пропуск пробного запуска при старте (последний запуск был %.0f мин назад, защита от двойного рестарта).",
+                    "Оркестратор: пропуск пробного запуска при старте (последний запуск был %.0f мин назад).",
                     elapsed / 60,
                 )
         except (ValueError, TypeError):

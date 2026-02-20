@@ -14,7 +14,7 @@
 
 ## Что уже есть в проекте
 
-- **webhook_server.py** (в корне) — HTTP-сервер (порт по умолчанию 3000, задаётся через `WEBHOOK_PORT`), endpoint `/webhook`, проверка подписи GitHub, при событии `push`: `git pull` (ветка из `DEPLOY_BRANCH`, по умолчанию `main`), `pip install` в venv по `docs/config/requirements.txt` и requirements блоков analytics/grs_image_web, перезапуск systemd-сервисов (analytics-dashboard, grs-image-web, zen-schedule).
+- **webhook_server.py** (в корне) — HTTP-сервер (порт по умолчанию 3000, задаётся через `WEBHOOK_PORT`), endpoint `/webhook`, проверка подписи GitHub, при событии `push`: `git pull` (ветка из `DEPLOY_BRANCH`, по умолчанию `main`), `pip install` в venv по `docs/config/requirements.txt` и requirements блоков analytics/grs_image_web, перезапуск systemd-сервисов (analytics-dashboard, grs-image-web, orchestrator-kz).
 - **github-webhook.service** — пример юнита systemd для запуска вебхука.
 - **docs/scripts/deploy_beget/setup_webhook.sh** — скрипт установки вебхука на VPS (пути и пользователь подставить свои).
 
@@ -40,16 +40,18 @@
 
 5. **Разрешить перезапуск сервисов без пароля (для пользователя, от которого крутится вебхук):**  
    `sudo visudo` (или файл в `/etc/sudoers.d/`), добавить строку (подставь своего пользователя):  
-   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web, /usr/bin/systemctl restart zen-schedule`  
+   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web, /usr/bin/systemctl restart orchestrator-kz`  
    Иначе вебхук сделает только `git pull` и `pip install`, а перезапуск systemd не выполнится (в логах будет предупреждение).
 
    **Кнопки «Запустить»/«Остановить» в дашборде:** чтобы они работали, пользователь, от которого запущен дашборд (analytics-dashboard), должен иметь право без пароля выполнять `systemctl start` и `systemctl stop` для тех же юнитов. Пример (подставь пользователя и полный список юнитов):  
-   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web, /usr/bin/systemctl restart zen-schedule, /usr/bin/systemctl start analytics-dashboard, /usr/bin/systemctl stop analytics-dashboard, /usr/bin/systemctl start grs-image-web, /usr/bin/systemctl stop grs-image-web, /usr/bin/systemctl start zen-schedule, /usr/bin/systemctl stop zen-schedule, ...`  
+   `u123 ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart analytics-dashboard, /usr/bin/systemctl restart grs-image-web, /usr/bin/systemctl restart orchestrator-kz, /usr/bin/systemctl start analytics-dashboard, /usr/bin/systemctl stop analytics-dashboard, /usr/bin/systemctl start grs-image-web, /usr/bin/systemctl stop grs-image-web, /usr/bin/systemctl start orchestrator-kz, /usr/bin/systemctl stop orchestrator-kz, ...`  
    (аналогично для остальных сервисов из списка на дашборде).
 
-   **Планировщик Дзен (zen-schedule):** при первом деплое сервис нужно один раз установить на VPS: скопировать `docs/scripts/deploy_beget/zen-schedule.service.example` в `/etc/systemd/system/zen-schedule.service`, подставить пользователя и путь к проекту, в .env задать переменные автопостинга (ZEN_STORAGE_STATE, GOOGLE_CREDENTIALS_PATH, GRS_AI_* и т.д.), выполнить `playwright install chromium` в venv, затем `sudo systemctl daemon-reload && sudo systemctl enable zen-schedule && sudo systemctl start zen-schedule`. После этого вебхук при каждом push будет перезапускать zen-schedule вместе с остальными сервисами.
+   **Оркестратор контент завода (orchestrator-kz):** при первом деплое сервис нужно один раз установить на VPS: скопировать `docs/scripts/deploy_beget/orchestrator-kz.service.example` в `/etc/systemd/system/orchestrator-kz.service`, подставить пользователя и путь к проекту. В `.env` на сервере **обязательно** задать переменные автопостинга: ZEN_STORAGE_STATE, GOOGLE_CREDENTIALS_PATH, GRS_AI_*, **TELEGRAM_BOT_TOKEN**, **TELEGRAM_CHANNEL_ID** (скопировать из рабочего .env с компа — без них публикация в Telegram падает при каждом запуске). Затем выполнить `playwright install chromium` (и при необходимости `playwright install-deps chromium`) в venv, `sudo systemctl daemon-reload && sudo systemctl enable orchestrator-kz && sudo systemctl start orchestrator-kz`. После этого вебхук при каждом push будет перезапускать orchestrator-kz. При старте оркестратор один раз выполняет пробный запуск цепочки (если не было запуска за последние 2 часа), затем работает по расписанию (5 слотов в день).
 
-   **Дашборд и статистика:** планировщик пишет каждый запуск (успешный и с ошибками) в ту же БД аналитики, что и дашборд (`storage/analytics.db` или проект из `ANALYTICS_PROJECT`). На сервере дашборд и zen-schedule должны работать из одного каталога проекта и одного .env — тогда в дашборде отображаются сводка, график и лента запусков (источник `schedule`). Проверка: после первого слота открыть дашборд и убедиться, что появился новый запуск с шагами (Генерация статьи, Публикация в Telegram, Публикация в Дзен) и каналом zen/telegram.
+   **Дашборд и статистика:** оркестратор пишет каждый запуск (успешный и с ошибками) в ту же БД аналитики, что и дашборд (`storage/analytics.db` или проект из `ANALYTICS_PROJECT`). На сервере дашборд и orchestrator-kz должны работать из одного каталога проекта и одного .env — тогда в дашборде отображаются сводка, график и лента запусков (источник `schedule`). Проверка: после старта оркестратора или первого слота открыть дашборд и убедиться, что появился новый запуск с шагами (Генерация статьи, Публикация в Telegram, Публикация в Дзен) и каналом zen/telegram.
+
+   **Переход с zen-schedule:** если на сервере уже был установлен старый юнит `zen-schedule`, после обновления кода: скопировать `orchestrator-kz.service.example` в `/etc/systemd/system/orchestrator-kz.service`, подставить User и пути, выполнить `sudo systemctl daemon-reload && sudo systemctl enable orchestrator-kz`, затем `sudo systemctl stop zen-schedule && sudo systemctl start orchestrator-kz`. В sudoers заменить `zen-schedule` на `orchestrator-kz`. Файл состояния переименован: `storage/zen_schedule_state.json` → `storage/orchestrator_kz_state.json` (при первом запуске оркестратора создастся новый).
 
 6. **Настроить вебхук в GitHub:**  
    Repo → Settings → Webhooks → Add webhook:  
@@ -61,6 +63,49 @@
 7. **Проверка:**  
    `curl http://IP_СЕРВЕРА:3000/health` → ответ "Webhook server is running".  
    После push в репозиторий смотреть логи: `journalctl -u github-webhook -f`.
+
+---
+
+## Если после push код на сервере не обновился
+
+Вебхук вызывается GitHub при каждом push в выбранную ветку. Если на сайте ничего не изменилось:
+
+1. **Проверить доставку в GitHub:**  
+   Repo → Settings → Webhooks → ваш webhook → **Recent Deliveries**. Найти запрос с нужным коммитом. Если статус не 200 или доставка не было — GitHub мог не отправить запрос или сервер не ответил (сеть, сервис упал). Можно нажать **Redeliver** для повторной отправки.
+
+2. **Проверить логи на сервере:**  
+   `journalctl -u github-webhook -n 100` или файл `storage/webhook.log` в корне проекта. Искать строки «Начинаем деплой», «git pull успешен», «Деплой завершен успешно». Если после вашего push таких записей нет — запрос до вебхука не дошёл или не обработан.
+
+3. **Ручной деплой (fallback):**  
+   Подключиться по SSH и выполнить из корня проекта:
+   ```bash
+   git pull origin main
+   sudo systemctl restart analytics-dashboard grs-image-web orchestrator-kz
+   ```
+   Или с Windows через скрипт проекта (нужен .env с SERVER_HOST, SERVER_USER, SERVER_SSH_PASSWORD или DEPLOY_SSH_PASSWORD):
+   ```powershell
+   .\docs\scripts\deploy_beget\remote_cmd.ps1 -Command "cd /root/contentzavod && git pull origin main && sudo systemctl restart analytics-dashboard grs-image-web orchestrator-kz"
+   ```
+   Подставь свой путь к проекту на сервере вместо `/root/contentzavod`, если он другой.
+
+**Важно:** падение GitHub Actions (например, workflow «Setup Staging») не отменяет и не заменяет вебхук: вебхук — это отдельный HTTP-запрос от GitHub на ваш сервер. Если не уверен, обновился ли код — на сервере выполни `git log -1 --oneline` в каталоге проекта и сверь с коммитом в GitHub.
+
+---
+
+## Оркестратор: OOM и таймауты
+
+Если оркестратор (orchestrator-kz) падает с **OOM (Out of Memory)** или в логах виден «killed by OOM killer»:
+
+- **Swap:** на сервере с малым объёмом RAM добавь swap: `sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` (и при необходимости добавь в fstab для сохранения после перезагрузки).
+- Браузер Chromium закрывается сразу после публикации; при нехватке памяти можно дополнительно ограничить процессы на сервере или увеличить RAM.
+
+Если при публикации в Дзен возникает **таймаут загрузки страницы** (Page.goto timeout):
+
+- В `.env` на сервере можно увеличить таймаут браузера: `ZEN_BROWSER_TIMEOUT=90000` (мс; по умолчанию 60000). Логи: `journalctl -u orchestrator-kz -n 100`.
+
+Если при генерации обложки возникает **таймаут GRS/Gemini** (например «google gemini timeout»):
+
+- В `.env` можно задать больший таймаут для запросов к GRS Draw API: `GRS_IMAGE_TIMEOUT=180` (секунды; по умолчанию 120). Генератор обложки при ошибке делает одну повторную попытку и при неудаче может использовать fallback-обложку из репозитория (если файл есть в `blocks/autopost_zen/articles/`).
 
 ---
 

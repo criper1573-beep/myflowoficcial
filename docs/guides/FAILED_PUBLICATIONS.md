@@ -40,3 +40,7 @@ python -m blocks.lifehacks_to_spambot blocks/autopost_zen/publish/013 --project 
 **Дзен** — через основной пайплайн автопостинга с путём к папке статьи (см. README блока `blocks/autopost_zen`).
 
 Файл `storage/failed_publications.jsonl` можно не очищать после успешной допубликации — по нему видно историю; при необходимости старые строки можно удалять вручную.
+
+---
+
+**Дашборд аналитики и зависшие запуски:** откуда дашборд берёт данные (БД, API) и как закрыть «зависшие» запуски с записью ошибки, чтобы не портилась статистика — см. [ANALYTICS_DASHBOARD_DATA.md](ANALYTICS_DASHBOARD_DATA.md). Скрипт: `python docs/scripts/close_stuck_analytics_runs.py --all`.

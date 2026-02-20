@@ -1,0 +1,26 @@
+# Юнит systemd для «Оркестратор контент завода» (orchestrator_kz).
+# Подставь: ТВОЙ_ПОЛЬЗОВАТЕЛЬ и /путь/к/проекту (например /root/contentzavod).
+# На сервере в .env ОБЯЗАТЕЛЬНО: ZEN_*, GOOGLE_CREDENTIALS_PATH, GRS_AI_*, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID (или PROJECT_ID и блок projects) — скопируйте из рабочего .env с компа, иначе публикация в Telegram будет падать (см. docs/rules/KEYS_AND_TOKENS.md). Рекомендуется ZEN_HEADLESS=true.
+# Playwright: один раз в venv выполнить playwright install chromium и при необходимости playwright install-deps chromium.
+# Разместить: sudo cp docs/scripts/deploy_beget/orchestrator-kz.service.example /etc/systemd/system/orchestrator-kz.service && sudo nano ... (подставить User, WorkingDirectory, пути)
+# Включить: sudo systemctl daemon-reload && sudo systemctl enable orchestrator-kz && sudo systemctl start orchestrator-kz
+# Переход с zen-schedule: stop zen-schedule, скопировать этот файл как orchestrator-kz.service, daemon-reload, enable && start orchestrator-kz.
+
+[Unit]
+Description=КонтентЗавод — Оркестратор контент завода (пробный запуск при старте, 5 слотов в день)
+After=network.target
+
+[Service]
+Type=simple
+User=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+Group=ТВОЙ_ПОЛЬЗОВАТЕЛЬ
+WorkingDirectory=/путь/к/проекту
+Environment="PYTHONPATH=/путь/к/проекту"
+Environment="ZEN_HEADLESS=true"
+EnvironmentFile=/путь/к/проекту/.env
+ExecStart=/путь/к/проекту/venv/bin/python -m blocks.autopost_zen --schedule
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
