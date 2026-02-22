@@ -219,13 +219,19 @@ def api_run_detail(
 
 
 # Список systemd-сервисов для страницы «Сервисы» (только Linux): (unit, label, description).
+# Соответствует проектным юнитам на сервере (analytics, grs, orchestrator, script_board, zakazy_forwarder и др.).
 SERVER_SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики", "Веб-интерфейс: сводка запусков, графики и статус сервисов"),
+    ("analytics-dashboard-staging", "Дашборд аналитики (staging)", "Стейжинг дашборда для ветки dev"),
     ("analytics-telegram-bot", "Telegram-бот дашборда", "Уведомления в Telegram о запусках и ошибках пайплайна"),
+    ("github-webhook", "GitHub Webhook", "Автодеплой по push в репозиторий"),
     ("grs-image-web", "Генерация картинок и ссылок", "Веб-интерфейс генерации изображений и загрузки ссылок (flowimage.ru)"),
+    ("grs-image-web-staging", "Генерация картинок (staging)", "Стейжинг flowimage для ветки dev"),
     ("orchestrator-kz", "Оркестратор контент завода", "Оркестратор: генерация и публикация (Дзен, Telegram) только по расписанию"),
+    ("script-board", "Script Board", "Доска скриптов диалогов (script.flowcabinet.ru)"),
     ("spambot", "Спамбот (NewsBot)", "Публикации в каналы: Дзен, соцсети и др."),
     ("contentzavod-watchdog", "Watchdog", "Следит за сервисами и сообщает при сбоях"),
+    ("zakazy-forwarder", "Zakazy Forwarder", "Пересылка заказов из каналов в обработку"),
     ("quickpack", "Quickpack", "Сайт Quickpack на сервере"),
 ]
 
@@ -272,8 +278,14 @@ def _service_public_url(unit: str) -> str | None:
     u = (unit or "").strip()
     if u == "analytics-dashboard":
         return (os.getenv("DASHBOARD_PUBLIC_URL") or "").strip() or None
+    if u == "analytics-dashboard-staging":
+        return (os.getenv("DASHBOARD_STAGING_PUBLIC_URL") or "").strip() or None
     if u == "grs-image-web":
         return (os.getenv("GRS_IMAGE_WEB_PUBLIC_URL") or "https://flowimage.ru").strip() or None
+    if u == "grs-image-web-staging":
+        return (os.getenv("GRS_IMAGE_WEB_STAGING_PUBLIC_URL") or "").strip() or None
+    if u == "script-board":
+        return (os.getenv("SCRIPT_BOARD_PUBLIC_URL") or "https://script.flowcabinet.ru").strip() or None
     if u == "quickpack":
         return (os.getenv("QUICKPACK_URL") or "").strip() or None
     return None
