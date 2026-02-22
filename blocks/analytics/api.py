@@ -239,7 +239,9 @@ SERVER_SERVICES = [
 # Корень проекта (для чтения storage/orchestrator_kz_state.json и порядка сервисов)
 _PROJECT_ROOT = BLOCK_DIR.parent.parent
 _ORCHESTRATOR_KZ_STATE_FILE = _PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
+_ORCHESTRATOR_PAUSED_FILE = _PROJECT_ROOT / "storage" / "orchestrator_kz_paused"
 _SERVICES_ORDER_FILE = _PROJECT_ROOT / "storage" / "services_order.json"
+_MANUAL_STOPPED_SERVICES_FILE = _PROJECT_ROOT / "storage" / "manual_stopped_services.json"
 _DEBUG_LOG_FILE = _PROJECT_ROOT / "debug-441024.log"
 
 
@@ -318,6 +320,34 @@ def _save_services_order(project: str, order: list) -> None:
             data = {}
     data[project] = order
     _SERVICES_ORDER_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_manual_stopped_services() -> set[str]:
+    """Юниты, которые вручную остановлены из дашборда (watchdog не должен их поднимать)."""
+    if not _MANUAL_STOPPED_SERVICES_FILE.exists():
+        return set()
+    try:
+        data = json.loads(_MANUAL_STOPPED_SERVICES_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return set()
+        return {str(x) for x in data if isinstance(x, str)}
+    except Exception:
+        return set()
+
+
+def _save_manual_stopped_services(units: set[str]) -> None:
+    _MANUAL_STOPPED_SERVICES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    payload = sorted(units)
+    _MANUAL_STOPPED_SERVICES_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _set_manual_stopped(unit: str, is_stopped: bool) -> None:
+    units = _load_manual_stopped_services()
+    if is_stopped:
+        units.add(unit)
+    else:
+        units.discard(unit)
+    _save_manual_stopped_services(units)
 
 
 def _remote_base() -> str | None:
@@ -539,10 +569,14 @@ def api_server_service_start(unit: str, request: Request):
     if sys.platform != "linux":
         return _proxy_post_to_remote(f"/api/server-services/{unit}/start", request)
     try:
+        # Для оркестратора снимаем паузу при ручном старте из дашборда.
+        if unit == "orchestrator-kz" and _ORCHESTRATOR_PAUSED_FILE.exists():
+            _ORCHESTRATOR_PAUSED_FILE.unlink()
         cmd = _systemctl_cmd() + ["start", unit]
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
             raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl start")
+        _set_manual_stopped(unit, False)
         return {"ok": True, "unit": unit}
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Таймаут")
@@ -575,6 +609,7 @@ def api_server_service_stop(unit: str, request: Request):
             raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl stop")
         if unit == "orchestrator-kz":
             _kill_all_orchestrator_processes()
+        _set_manual_stopped(unit, True)
         return {"ok": True, "unit": unit}
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Таймаут")

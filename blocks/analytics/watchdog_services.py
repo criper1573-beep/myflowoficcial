@@ -32,12 +32,13 @@ except ImportError:
     pass
 
 CHECK_INTERVAL = int(os.getenv("WATCHDOG_INTERVAL", "90"))
+MANUAL_STOPPED_SERVICES_FILE = PROJECT_ROOT / "storage" / "manual_stopped_services.json"
 # Те же сервисы, что на дашборде (кроме самого watchdog).
 SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики"),
     ("analytics-telegram-bot", "Telegram-бот дашборда"),
     ("grs-image-web", "Генерация картинок и ссылок"),
-    ("zen-schedule", "Автопостинг Дзен"),
+    ("orchestrator-kz", "Оркестратор контент завода"),
     ("spambot", "Спамбот (NewsBot)"),
     ("quickpack", "Quickpack"),
 ]
@@ -98,6 +99,20 @@ def send_telegram(text: str) -> bool:
         return False
 
 
+def load_manual_stopped_services() -> set[str]:
+    """Сервисы, вручную остановленные из дашборда: watchdog их не перезапускает."""
+    if not MANUAL_STOPPED_SERVICES_FILE.exists():
+        return set()
+    try:
+        import json
+        data = json.loads(MANUAL_STOPPED_SERVICES_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            return set()
+        return {str(x) for x in data if isinstance(x, str)}
+    except Exception:
+        return set()
+
+
 def main():
     if sys.platform != "linux":
         print("Watchdog только для Linux (systemctl). Выход.")
@@ -105,7 +120,10 @@ def main():
     if not BOT_TOKEN or not CHAT_ID:
         print("Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_ALERT_CHAT_ID в .env для уведомлений.")
     while True:
+        manually_stopped = load_manual_stopped_services()
         for unit, label in SERVICES:
+            if unit in manually_stopped:
+                continue
             # Quickpack: при заданном QUICKPACK_URL проверяем по HTTP, перезапуск не делаем
             if unit == "quickpack":
                 quickpack_url = (os.getenv("QUICKPACK_URL") or "").strip()
