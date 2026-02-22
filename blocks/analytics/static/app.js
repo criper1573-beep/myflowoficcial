@@ -8,9 +8,11 @@
     vk: 'VK',
     vc_ru: 'VC.ru',
     generation: 'Generation',
+    taskmanager: 'Диспетчер задач',
   };
   const SOURCE_LABELS = {
-    schedule: 'Автопостинг Дзен',
+    schedule: 'Оркестратор (расписание)',
+    manual_once: 'Разовый прогон (дашборд)',
     google_sheets: 'Таблица',
     file: 'Файл',
   };
@@ -69,8 +71,10 @@
     const pageMain = document.getElementById('page-main');
     const pageChannel = document.getElementById('page-channel');
     const pageGeneration = document.getElementById('page-generation');
+    const pageTaskManager = document.getElementById('page-task-manager');
     if (!pageMain || !pageChannel) return;
     if (pageGeneration) pageGeneration.classList.add('hidden');
+    if (pageTaskManager) pageTaskManager.classList.add('hidden');
     if (currentChannel === '') {
       pageMain.classList.remove('hidden');
       pageChannel.classList.add('hidden');
@@ -80,6 +84,11 @@
       pageChannel.classList.add('hidden');
       if (pageGeneration) pageGeneration.classList.remove('hidden');
       loadGeneration();
+    } else if (currentChannel === 'taskmanager') {
+      pageMain.classList.add('hidden');
+      pageChannel.classList.add('hidden');
+      if (pageTaskManager) pageTaskManager.classList.remove('hidden');
+      loadServerServices();
     } else {
       pageMain.classList.add('hidden');
       pageChannel.classList.remove('hidden');
@@ -333,7 +342,10 @@
         var nextRun = s.next_run_at ? formatScheduleDt(s.next_run_at) : '';
         var scheduleLine = (lastRun || nextRun) ? (lastRun ? 'Последний: ' + lastRun : '') + (lastRun && nextRun ? ' · ' : '') + (nextRun ? 'След.: ' + nextRun : '') : '';
         var openBtn = url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600">Открыть сайт</a>' : '';
-        var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>';
+        var runOnce = (!isLocalItem && s.unit === 'orchestrator-kz')
+          ? '<button type="button" class="service-run-once px-3 py-1.5 rounded text-sm bg-blue-700/80 text-white hover:bg-blue-600" data-unit="' + escapeAttr(s.unit) + '">Разовый прогон</button>'
+          : '';
+        var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>' + runOnce;
         return (
           '<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-3 rounded-lg border border-gray-700 bg-gray-800 hover:border-gray-600">' +
           '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '" aria-hidden="true"></span>' +
@@ -372,6 +384,25 @@
         fetch(API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/stop'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
           .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
           .then(function () { loadServerServices(); })
+          .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
+          .finally(function () { btn.disabled = false; });
+      });
+    });
+    wrap.querySelectorAll('.service-run-once').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        // #region agent log
+        fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'441024'},body:JSON.stringify({sessionId:'441024',runId:'pre-fix',hypothesisId:'H4',location:'blocks/analytics/static/app.js',message:'run_once_button_clicked',data:{unit:'orchestrator-kz'},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        fetch(API + appendProjectParam('/server-services/orchestrator-kz/run-once'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+          .then(function () {
+            // #region agent log
+            fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'441024'},body:JSON.stringify({sessionId:'441024',runId:'pre-fix',hypothesisId:'H4',location:'blocks/analytics/static/app.js',message:'run_once_request_ok',data:{unit:'orchestrator-kz'},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            alert('Разовый прогон запущен.');
+            loadServerServices();
+          })
           .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
           .finally(function () { btn.disabled = false; });
       });
@@ -428,7 +459,6 @@
         loading.classList.remove('hidden');
       }
     });
-    loadServerServices();
   }
 
   async function loadChannel(channel, project) {
@@ -674,6 +704,17 @@
       setChannel(a.getAttribute('data-channel') || '');
     });
   });
+
+  var btnRefresh = document.getElementById('btn-refresh');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', function () {
+      if (currentChannel === '') {
+        loadMain();
+      } else if (currentChannel === 'taskmanager') {
+        loadServerServices();
+      }
+    });
+  }
 
   var btnServicesMore = document.getElementById('btn-services-more');
   if (btnServicesMore) {
