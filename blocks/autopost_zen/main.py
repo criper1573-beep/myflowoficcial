@@ -262,11 +262,30 @@ def main() -> int:
     parser.add_argument("--keep-open", action="store_true", help="Не закрывать браузер")
     parser.add_argument("--schedule", "-s", action="store_true",
                         help="Оркестратор контент завода: пробный запуск при старте, затем 5 слотов в день по расписанию")
+    parser.add_argument("--pause-orchestrator", action="store_true",
+                        help="Создать файл приостановки: оркестратор при следующем старте сразу выйдет без генерации и расписания")
+    parser.add_argument("--resume-orchestrator", action="store_true",
+                        help="Удалить файл приостановки: после этого перезапуск сервиса снова запустит оркестратор")
     args = parser.parse_args()
 
     log_file = config.BLOCK_DIR / "autopost_debug.log"
     setup_logging(log_file)
 
+    if args.pause_orchestrator:
+        from .scheduler import ORCHESTRATOR_PAUSED_FILE
+        ORCHESTRATOR_PAUSED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ORCHESTRATOR_PAUSED_FILE.touch()
+        print("Оркестратор приостановлен. Файл создан:", ORCHESTRATOR_PAUSED_FILE)
+        print("При следующем старте (или перезапуске systemd) оркестратор сразу выйдет без генерации статей.")
+        return 0
+    if args.resume_orchestrator:
+        from .scheduler import ORCHESTRATOR_PAUSED_FILE
+        if ORCHESTRATOR_PAUSED_FILE.exists():
+            ORCHESTRATOR_PAUSED_FILE.unlink()
+            print("Файл приостановки удалён. Оркестратор снова будет работать после перезапуска сервиса.")
+        else:
+            print("Файл приостановки не найден, оркестратор уже не приостановлен.")
+        return 0
     if args.schedule:
         from .scheduler import run_scheduler_loop
         run_scheduler_loop()

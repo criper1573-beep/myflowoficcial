@@ -33,6 +33,8 @@ from blocks.analytics import db as analytics_db
 
 ORCHESTRATOR_KZ_STATE_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
 ORCHESTRATOR_LOCK_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz.lock"
+# Если этот файл существует — оркестратор при старте сразу выходит (без генерации и без расписания). Не перезапускается, пока файл не удалить.
+ORCHESTRATOR_PAUSED_FILE = config.PROJECT_ROOT / "storage" / "orchestrator_kz_paused"
 FAILED_PUBLICATIONS_FILE = config.PROJECT_ROOT / "storage" / "failed_publications.jsonl"
 from .zen_client import run_post_flow, PUBLISH_DIR
 
@@ -471,7 +473,16 @@ def run_scheduler_loop() -> None:
     ОБЯЗАТЕЛЬНО: при каждом старте сервиса сначала выполняется один полный прогон цепочки
     (генерация → Telegram → Дзен), чтобы убедиться, что всё работает. Расписание — отдельно, после прогона.
     Только один экземпляр оркестратора может работать (файловая блокировка на Linux).
+    Если существует файл storage/orchestrator_kz_paused — оркестратор сразу выходит (без генерации и расписания).
     """
+    if ORCHESTRATOR_PAUSED_FILE.exists():
+        LOG.info(
+            "Оркестратор приостановлен (найден файл %s). Генерация и расписание отключены. "
+            "Чтобы возобновить: удалите файл и перезапустите сервис (или запустите с --resume-orchestrator).",
+            ORCHESTRATOR_PAUSED_FILE.name,
+        )
+        sys.exit(0)
+
     _lock_file = _acquire_orchestrator_lock()  # держим ссылку, чтобы файл не закрылся и lock не снялся
     _close_stale_schedule_runs()
 

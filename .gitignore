@@ -16,6 +16,7 @@ config/*.local.yaml
 *.secret.*
 *_storage_state.json
 zen_storage_state.json
+*.session
 .browser_profile_capture/
 .browser_profile_verify/
 
@@ -24,7 +25,8 @@ storage/content/
 storage/images/
 storage/logs/
 storage/*.db
-storage/zen_schedule_state.json
+storage/orchestrator_kz_state.json
+storage/orchestrator_kz_paused
 *.log
 blocks/spambot/newsbot_posted.json
 blocks/grs_image_web/users.json
