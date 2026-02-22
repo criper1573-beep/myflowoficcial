@@ -366,8 +366,17 @@
         var unit = btn.getAttribute('data-unit');
         if (!unit) return;
         btn.disabled = true;
-        fetch(API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/start'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
-          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+        var startUrl = API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/start');
+        // #region agent log
+        fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H1',location:'blocks/analytics/static/app.js:start_click',message:'start_click',data:{unit:unit,url:startUrl,origin:window.location.origin,project:currentProject},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        fetch(startUrl, { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) {
+            // #region agent log
+            fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H2',location:'blocks/analytics/static/app.js:start_response',message:'start_response',data:{unit:unit,status:r.status,ok:r.ok,detail:d&&d.detail?d.detail:null,body:d},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText));
+          }); })
           .then(function () { loadServerServices(); })
           .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
           .finally(function () { btn.disabled = false; });
@@ -378,8 +387,17 @@
         var unit = btn.getAttribute('data-unit');
         if (!unit) return;
         btn.disabled = true;
-        fetch(API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/stop'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
-          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+        var stopUrl = API + appendProjectParam('/server-services/' + encodeURIComponent(unit) + '/stop');
+        // #region agent log
+        fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H1',location:'blocks/analytics/static/app.js:stop_click',message:'stop_click',data:{unit:unit,url:stopUrl,origin:window.location.origin,project:currentProject},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        fetch(stopUrl, { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) {
+            // #region agent log
+            fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H2',location:'blocks/analytics/static/app.js:stop_response',message:'stop_response',data:{unit:unit,status:r.status,ok:r.ok,detail:d&&d.detail?d.detail:null,body:d},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText));
+          }); })
           .then(function () { loadServerServices(); })
           .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })
           .finally(function () { btn.disabled = false; });
@@ -391,8 +409,17 @@
         // #region agent log
         fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'441024'},body:JSON.stringify({sessionId:'441024',runId:'pre-fix',hypothesisId:'H4',location:'blocks/analytics/static/app.js',message:'run_once_button_clicked',data:{unit:'orchestrator-kz'},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
-        fetch(API + appendProjectParam('/server-services/orchestrator-kz/run-once'), { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
-          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+        var runOnceUrl = API + appendProjectParam('/server-services/orchestrator-kz/run-once');
+        // #region agent log
+        fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H3',location:'blocks/analytics/static/app.js:run_once_click',message:'run_once_click',data:{url:runOnceUrl,origin:window.location.origin,project:currentProject},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        fetch(runOnceUrl, { method: 'POST', headers: { 'X-Requested-Project': currentProject } })
+          .then(function (r) { return r.json().then(function (d) {
+            // #region agent log
+            fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',runId:'pre-fix',hypothesisId:'H3',location:'blocks/analytics/static/app.js:run_once_response',message:'run_once_response',data:{status:r.status,ok:r.ok,detail:d&&d.detail?d.detail:null,body:d},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText));
+          }); })
           .then(function () {
             // #region agent log
             fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'441024'},body:JSON.stringify({sessionId:'441024',runId:'pre-fix',hypothesisId:'H4',location:'blocks/analytics/static/app.js',message:'run_once_request_ok',data:{unit:'orchestrator-kz'},timestamp:Date.now()})}).catch(()=>{});
