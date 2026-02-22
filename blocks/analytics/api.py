@@ -320,12 +320,17 @@ def _save_services_order(project: str, order: list) -> None:
     _SERVICES_ORDER_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _remote_base() -> str | None:
+    """Базовый URL удалённого сервера (для проксирования)."""
+    url = os.environ.get("ANALYTICS_SERVER_SERVICES_URL", "").strip()
+    return url.rstrip("/") if url else None
+
+
 def _fetch_remote_server_services() -> dict | None:
     """Запросить статус сервисов с удалённого сервера (для локального дашборда)."""
-    url = os.environ.get("ANALYTICS_SERVER_SERVICES_URL", "").strip()
-    if not url:
+    base = _remote_base()
+    if not base:
         return None
-    base = url.rstrip("/")
     try:
         req = UrlRequest(base + "/api/server-services", headers={"Accept": "application/json"})
         with urlopen(req, timeout=10) as r:
@@ -333,6 +338,33 @@ def _fetch_remote_server_services() -> dict | None:
     except (URLError, HTTPError, ValueError, OSError) as e:
         logger.warning("Не удалось загрузить сервисы с %s: %s", base, e)
         return None
+
+
+def _proxy_post_to_remote(path: str, request: Request) -> dict:
+    """
+    Отправить POST на удалённый сервер и вернуть JSON. Если сервер вернул ошибку — пробросить HTTPException.
+    Используется, когда дашборд запущен не на Linux (например локально), а управление сервисами на удалённом сервере.
+    """
+    base = _remote_base()
+    if not base:
+        raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере. Задайте ANALYTICS_SERVER_SERVICES_URL для проксирования.")
+    url = base + path
+    project = _project_from_request(request)
+    headers = {"Accept": "application/json", "Content-Type": "application/json", "X-Requested-Project": project}
+    try:
+        req = UrlRequest(url, data=b"", method="POST", headers=headers)
+        with urlopen(req, timeout=20) as r:
+            return json.loads(r.read().decode())
+    except HTTPError as e:
+        try:
+            body = e.read().decode()
+            detail = json.loads(body).get("detail", body) if body else e.reason
+        except Exception:
+            detail = str(e.reason or e.code)
+        raise HTTPException(status_code=e.code, detail=detail)
+    except (URLError, ValueError, OSError) as e:
+        logger.warning("Прокси POST %s: %s", url, e)
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с сервером: {e!s}")
 
 
 @app.get("/api/server-services")
@@ -471,6 +503,16 @@ def api_server_services(request: Request):
 ALLOWED_SERVICE_UNITS = {u[0] for u in SERVER_SERVICES}
 
 
+def _systemctl_cmd() -> list[str]:
+    """Команда для вызова systemctl: без sudo если процесс от root, иначе sudo -n."""
+    try:
+        if os.geteuid() == 0:
+            return ["systemctl"]
+    except AttributeError:
+        pass  # Windows, нет geteuid
+    return ["sudo", "-n", "systemctl"]
+
+
 @app.put("/api/server-services-order")
 def api_server_services_order(request: Request, body: dict = Body(...)):
     """
@@ -490,19 +532,15 @@ def api_server_services_order(request: Request, body: dict = Body(...)):
 
 
 @app.post("/api/server-services/{unit}/start")
-def api_server_service_start(unit: str):
-    """Запустить systemd-сервис (только на Linux, unit из разрешённого списка)."""
-    if sys.platform != "linux":
-        raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере")
+def api_server_service_start(unit: str, request: Request):
+    """Запустить systemd-сервис (на Linux — локально; иначе — прокси на ANALYTICS_SERVER_SERVICES_URL)."""
     if unit not in ALLOWED_SERVICE_UNITS:
         raise HTTPException(status_code=400, detail="Сервис не в списке")
+    if sys.platform != "linux":
+        return _proxy_post_to_remote(f"/api/server-services/{unit}/start", request)
     try:
-        out = subprocess.run(
-            ["sudo", "-n", "systemctl", "start", unit],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        cmd = _systemctl_cmd() + ["start", unit]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
             raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl start")
         return {"ok": True, "unit": unit}
@@ -515,32 +553,24 @@ def api_server_service_start(unit: str):
 def _kill_all_orchestrator_processes() -> None:
     """Убить все процессы оркестратора (python -m blocks.autopost_zen), чтобы ни один не остался работающим."""
     try:
-        subprocess.run(
-            ["sudo", "-n", "pkill", "-9", "-f", "blocks.autopost_zen"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        pkill_cmd = ["pkill", "-9", "-f", "blocks.autopost_zen"] if os.geteuid() == 0 else ["sudo", "-n", "pkill", "-9", "-f", "blocks.autopost_zen"]
+        subprocess.run(pkill_cmd, capture_output=True, text=True, timeout=10)
         # pkill возвращает 1, если не найден ни один процесс — это нормально
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError, AttributeError):
         pass
 
 
 @app.post("/api/server-services/{unit}/stop")
-def api_server_service_stop(unit: str):
-    """Остановить systemd-сервис (только на Linux, unit из разрешённого списка).
-    Для orchestrator-kz дополнительно убиваются все процессы оркестратора (pkill), чтобы не осталось ни одного работающего."""
-    if sys.platform != "linux":
-        raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере")
+def api_server_service_stop(unit: str, request: Request):
+    """Остановить systemd-сервис (на Linux — локально; иначе — прокси на ANALYTICS_SERVER_SERVICES_URL).
+    Для orchestrator-kz дополнительно убиваются все процессы оркестратора (pkill)."""
     if unit not in ALLOWED_SERVICE_UNITS:
         raise HTTPException(status_code=400, detail="Сервис не в списке")
+    if sys.platform != "linux":
+        return _proxy_post_to_remote(f"/api/server-services/{unit}/stop", request)
     try:
-        out = subprocess.run(
-            ["sudo", "-n", "systemctl", "stop", unit],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        cmd = _systemctl_cmd() + ["stop", unit]
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
             raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl stop")
         if unit == "orchestrator-kz":
@@ -553,10 +583,10 @@ def api_server_service_stop(unit: str):
 
 
 @app.post("/api/server-services/orchestrator-kz/run-once")
-def api_orchestrator_run_once():
-    """Разовый прогон цепочки оркестратора (вручную из дашборда), независимо от состояния systemd-сервиса."""
+def api_orchestrator_run_once(request: Request):
+    """Разовый прогон цепочки оркестратора (на Linux — локально; иначе — прокси на ANALYTICS_SERVER_SERVICES_URL)."""
     if sys.platform != "linux":
-        raise HTTPException(status_code=501, detail="Разовый прогон доступен только на Linux-сервере")
+        return _proxy_post_to_remote("/api/server-services/orchestrator-kz/run-once", request)
     python_bin = (_PROJECT_ROOT / "venv" / "bin" / "python")
     if not python_bin.exists():
         python_bin = Path(sys.executable)
