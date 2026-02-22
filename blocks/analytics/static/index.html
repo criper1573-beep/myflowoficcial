@@ -19,7 +19,6 @@
         <p class="text-gray-400 text-sm sm:text-base">Аналитика пайплайна публикаций</p>
       </div>
       <div class="flex items-center gap-2">
-        <button type="button" id="btn-refresh" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" aria-label="Обновить страницу" title="Обновить">↻</button>
         <div id="project-switcher-wrap" class="project-switcher-wrap relative">
         <button type="button" id="project-trigger" class="project-trigger px-4 py-2 rounded-lg font-medium text-sm bg-gray-800/50 border border-gray-700 text-white hover:bg-gray-700 transition-colors flex items-center gap-1.5" aria-haspopup="true" aria-expanded="false" aria-label="Выбрать проект">
           <span id="project-trigger-label">FLOW</span>
@@ -214,6 +213,11 @@
       <div id="error-panel-label" class="text-gray-300 text-sm mb-2"></div>
       <pre id="error-panel-message" class="error-panel-message text-xs sm:text-sm text-gray-400 whitespace-pre-wrap break-words bg-gray-900 p-3 rounded overflow-x-auto select-text"></pre>
     </div>
+  </div>
+
+  <!-- Плавающая кнопка обновления (видна при прокрутке) -->
+  <div class="fixed top-4 right-4 z-40">
+    <button type="button" id="btn-refresh" class="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700 bg-gray-800/90 border border-gray-600 shadow-lg transition-colors" aria-label="Обновить страницу" title="Обновить">↻</button>
   </div>
 
   <script src="/static/app.js?v=4"></script>

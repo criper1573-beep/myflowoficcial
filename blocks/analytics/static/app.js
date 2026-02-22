@@ -55,9 +55,6 @@
 
   function setChannel(channel) {
     currentChannel = channel || '';
-    // #region agent log
-    fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',location:'app.js:setChannel',message:'setChannel',data:{channel:currentChannel},hypothesisId:'H1',timestamp:Date.now()})}).catch(function(){});
-    // #endregion
     var navChannels = document.getElementById('nav-channels');
     if (navChannels) navChannels.classList.toggle('hidden', currentChannel === 'taskmanager');
     document.querySelectorAll('.nav-channel').forEach(function (a) {
@@ -306,9 +303,6 @@
     var wrap = document.getElementById('services-items');
     var loading = document.getElementById('services-loading');
     var moreWrap = document.getElementById('services-more-wrap');
-    // #region agent log
-    if (wrap) fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',location:'app.js:renderServerServices',message:'renderServerServices',data:{servicesCount:services.length,visibleCount:visibleCount,parentId:wrap.parentElement&&wrap.parentElement.id},hypothesisId:'H3',timestamp:Date.now()})}).catch(function(){});
-    // #endregion
     if (!wrap) return;
     if (loading) loading.classList.add('hidden');
     if (!services || services.length === 0) {
@@ -353,7 +347,7 @@
         var runOnce = (!isLocalItem && s.unit === 'orchestrator-kz')
           ? '<button type="button" class="service-run-once px-3 py-1.5 rounded text-sm bg-blue-700/80 text-white hover:bg-blue-600" data-unit="' + escapeAttr(s.unit) + '">Разовый прогон</button>'
           : '';
-        var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>' + runOnce;
+        var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>';
         return (
           '<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-3 rounded-lg border border-gray-700 bg-gray-800 hover:border-gray-600">' +
           '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '" aria-hidden="true"></span>' +
@@ -363,9 +357,10 @@
           '<div class="text-xs text-gray-500">' + stateText + pid + (scheduleLine ? ' · ' + scheduleLine : '') + '</div>' +
           '<div class="text-xs text-gray-500 mt-0.5">' + s.unit + '</div>' +
           '</div>' +
-          '<div class="flex flex-wrap items-center gap-2 flex-shrink-0">' +
-          startStop +
+          '<div class="flex flex-wrap items-center gap-2 flex-shrink-0 justify-end" style="min-width: 220px;">' +
           openBtn +
+          runOnce +
+          startStop +
           '</div>' +
           '</div>'
         );
@@ -418,15 +413,9 @@
   }
 
   async function loadServerServices() {
-    // #region agent log
-    fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',location:'app.js:loadServerServices',message:'loadServerServices_start',hypothesisId:'H2',timestamp:Date.now()})}).catch(function(){});
-    // #endregion
     try {
       var data = await fetchJson('/server-services');
       allServices = data.services || [];
-      // #region agent log
-      fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',location:'app.js:loadServerServices',message:'loadServerServices_data',data:{servicesCount:allServices.length},hypothesisId:'H2',timestamp:Date.now()})}).catch(function(){});
-      // #endregion
       renderServerServices(allServices, INITIAL_SERVICES_VISIBLE);
       var noteEl = document.getElementById('services-note');
       if (noteEl) {
@@ -438,9 +427,6 @@
       var loading = document.getElementById('services-loading');
       if (loading) loading.classList.add('hidden');
       if (wrap) wrap.innerHTML = '<p class="text-gray-500 col-span-full">Не удалось загрузить сервисы</p>';
-      // #region agent log
-      fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f594cc'},body:JSON.stringify({sessionId:'f594cc',location:'app.js:loadServerServices',message:'loadServerServices_error',data:{error:String(e.message)},hypothesisId:'H2',timestamp:Date.now()})}).catch(function(){});
-      // #endregion
     }
   }
 
