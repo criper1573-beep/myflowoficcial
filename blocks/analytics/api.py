@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.request import Request as UrlRequest, urlopen
 from urllib.error import URLError, HTTPError
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -223,16 +223,35 @@ SERVER_SERVICES = [
     ("analytics-dashboard", "Дашборд аналитики", "Веб-интерфейс: сводка запусков, графики и статус сервисов"),
     ("analytics-telegram-bot", "Telegram-бот дашборда", "Уведомления в Telegram о запусках и ошибках пайплайна"),
     ("grs-image-web", "Генерация картинок и ссылок", "Веб-интерфейс генерации изображений и загрузки ссылок (flowimage.ru)"),
-    ("orchestrator-kz", "Оркестратор контент завода", "Оркестратор: генерация и публикация (Дзен, Telegram) по расписанию; при старте — один пробный запуск"),
+    ("orchestrator-kz", "Оркестратор контент завода", "Оркестратор: генерация и публикация (Дзен, Telegram) только по расписанию"),
     ("spambot", "Спамбот (NewsBot)", "Публикации в каналы: Дзен, соцсети и др."),
     ("contentzavod-watchdog", "Watchdog", "Следит за сервисами и сообщает при сбоях"),
     ("quickpack", "Quickpack", "Сайт Quickpack на сервере"),
 ]
 
 
-# Корень проекта (для чтения storage/orchestrator_kz_state.json)
+# Корень проекта (для чтения storage/orchestrator_kz_state.json и порядка сервисов)
 _PROJECT_ROOT = BLOCK_DIR.parent.parent
 _ORCHESTRATOR_KZ_STATE_FILE = _PROJECT_ROOT / "storage" / "orchestrator_kz_state.json"
+_SERVICES_ORDER_FILE = _PROJECT_ROOT / "storage" / "services_order.json"
+_DEBUG_LOG_FILE = _PROJECT_ROOT / "debug-441024.log"
+
+
+def _append_debug_log(hypothesis_id: str, run_id: str, message: str, data: dict) -> None:
+    payload = {
+        "sessionId": "441024",
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+        "location": "blocks/analytics/api.py",
+        "message": message,
+        "data": data,
+        "timestamp": int(datetime.now().timestamp() * 1000),
+    }
+    try:
+        with open(_DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _get_orchestrator_kz_state() -> dict:
@@ -260,6 +279,35 @@ def _service_public_url(unit: str) -> str | None:
     return None
 
 
+def _load_services_order(project: str) -> list | None:
+    """Загрузить сохранённый порядок unit для проекта. Возвращает список unit или None."""
+    if not _SERVICES_ORDER_FILE.exists():
+        return None
+    try:
+        data = json.loads(_SERVICES_ORDER_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        order = data.get(project)
+        return order if isinstance(order, list) else None
+    except Exception:
+        return None
+
+
+def _save_services_order(project: str, order: list) -> None:
+    """Сохранить порядок unit для проекта в storage/services_order.json."""
+    _SERVICES_ORDER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data = {}
+    if _SERVICES_ORDER_FILE.exists():
+        try:
+            data = json.loads(_SERVICES_ORDER_FILE.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                data = {}
+        except Exception:
+            data = {}
+    data[project] = order
+    _SERVICES_ORDER_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _fetch_remote_server_services() -> dict | None:
     """Запросить статус сервисов с удалённого сервера (для локального дашборда)."""
     url = os.environ.get("ANALYTICS_SERVER_SERVICES_URL", "").strip()
@@ -276,16 +324,25 @@ def _fetch_remote_server_services() -> dict | None:
 
 
 @app.get("/api/server-services")
-def api_server_services():
+def api_server_services(request: Request):
     """
     Статус systemd-сервисов (active/failed/inactive).
     На Linux — через systemctl; на других ОС — пустой список или данные с удалённого
     сервера, если задан ANALYTICS_SERVER_SERVICES_URL.
+    В ответе customOrder — сохранённый пользователем порядок unit (для сортировки в UI).
     """
+    project = _project_from_request(request)
+    custom_order = _load_services_order(project)
+
+    def with_order(d: dict) -> dict:
+        if custom_order is not None:
+            d["customOrder"] = custom_order
+        return d
+
     if sys.platform != "linux":
         remote = _fetch_remote_server_services()
         if remote and remote.get("services"):
-            return {"services": remote["services"], "note": "Данные с сервера"}
+            return with_order({"services": remote["services"], "note": "Данные с сервера"})
         # Локальный режим: те же карточки сервисов с пометкой, чтобы блок не пустой и можно тестировать вёрстку
         result_local = []
         for item in SERVER_SERVICES:
@@ -303,7 +360,7 @@ def api_server_services():
             if unit == "orchestrator-kz":
                 s.update(_get_orchestrator_kz_state())
             result_local.append(s)
-        return {"services": result_local, "note": "Статус сервисов отображается только при запуске на Linux-сервере."}
+        return with_order({"services": result_local, "note": "Статус сервисов отображается только при запуске на Linux-сервере."})
     result = []
     for item in SERVER_SERVICES:
         unit, label = item[0], item[1]
@@ -396,10 +453,28 @@ def api_server_services():
         if s.get("unit") == "orchestrator-kz":
             s.update(_get_orchestrator_kz_state())
             break
-    return {"services": result}
+    return with_order({"services": result})
 
 
 ALLOWED_SERVICE_UNITS = {u[0] for u in SERVER_SERVICES}
+
+
+@app.put("/api/server-services-order")
+def api_server_services_order(request: Request, body: dict = Body(...)):
+    """
+    Сохранить пользовательский порядок сервисов в Диспетчере задач.
+    body: {"order": ["unit1", "unit2", ...]} — список unit в нужном порядке.
+    Сохраняется в storage/services_order.json по проекту (flow/fulfilment).
+    """
+    project = _project_from_request(request)
+    order = body.get("order")
+    if not isinstance(order, list):
+        raise HTTPException(status_code=400, detail="Требуется поле order: массив unit")
+    for u in order:
+        if not isinstance(u, str) or u not in ALLOWED_SERVICE_UNITS:
+            raise HTTPException(status_code=400, detail=f"Недопустимый unit: {u!r}")
+    _save_services_order(project, order)
+    return {"ok": True, "order": order}
 
 
 @app.post("/api/server-services/{unit}/start")
@@ -425,9 +500,24 @@ def api_server_service_start(unit: str):
         raise HTTPException(status_code=503, detail="systemctl/sudo недоступен")
 
 
+def _kill_all_orchestrator_processes() -> None:
+    """Убить все процессы оркестратора (python -m blocks.autopost_zen), чтобы ни один не остался работающим."""
+    try:
+        subprocess.run(
+            ["sudo", "-n", "pkill", "-9", "-f", "blocks.autopost_zen"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        # pkill возвращает 1, если не найден ни один процесс — это нормально
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+
 @app.post("/api/server-services/{unit}/stop")
 def api_server_service_stop(unit: str):
-    """Остановить systemd-сервис (только на Linux, unit из разрешённого списка)."""
+    """Остановить systemd-сервис (только на Linux, unit из разрешённого списка).
+    Для orchestrator-kz дополнительно убиваются все процессы оркестратора (pkill), чтобы не осталось ни одного работающего."""
     if sys.platform != "linux":
         raise HTTPException(status_code=501, detail="Управление сервисами только на Linux-сервере")
     if unit not in ALLOWED_SERVICE_UNITS:
@@ -441,11 +531,53 @@ def api_server_service_stop(unit: str):
         )
         if out.returncode != 0:
             raise HTTPException(status_code=502, detail=out.stderr or out.stdout or "Ошибка systemctl stop")
+        if unit == "orchestrator-kz":
+            _kill_all_orchestrator_processes()
         return {"ok": True, "unit": unit}
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Таймаут")
     except FileNotFoundError:
         raise HTTPException(status_code=503, detail="systemctl/sudo недоступен")
+
+
+@app.post("/api/server-services/orchestrator-kz/run-once")
+def api_orchestrator_run_once():
+    """Разовый прогон цепочки оркестратора (вручную из дашборда), независимо от состояния systemd-сервиса."""
+    if sys.platform != "linux":
+        raise HTTPException(status_code=501, detail="Разовый прогон доступен только на Linux-сервере")
+    python_bin = (_PROJECT_ROOT / "venv" / "bin" / "python")
+    if not python_bin.exists():
+        python_bin = Path(sys.executable)
+    cmd = [str(python_bin), "-m", "blocks.autopost_zen", "--run-once"]
+    try:
+        # #region agent log
+        _append_debug_log(
+            "H4",
+            "pre-fix",
+            "manual_run_endpoint_called",
+            {"cmd": cmd, "cwd": str(_PROJECT_ROOT)},
+        )
+        # #endregion
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(_PROJECT_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        # #region agent log
+        _append_debug_log(
+            "H4",
+            "pre-fix",
+            "manual_run_process_started",
+            {"pid": proc.pid},
+        )
+        # #endregion
+        return {"ok": True, "pid": proc.pid}
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="Python для оркестратора не найден")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- Generation: статистика по картинкам и ссылкам (grs_image_web) ---

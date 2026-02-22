@@ -20,7 +20,6 @@
     return SOURCE_LABELS[source] || source || '—';
   }
   const INITIAL_RUNS_VISIBLE = 3;
-  const INITIAL_SERVICES_VISIBLE = 3;
 
   let currentProject = 'flow';
   let currentChannel = '';
@@ -298,29 +297,23 @@
     renderTimeline(data, days, chartElId);
   }
 
-  function renderServerServices(services, visibleCount) {
-    if (visibleCount == null) visibleCount = services.length;
+  function renderServerServices(services, preserveOrder) {
     var wrap = document.getElementById('services-items');
     var loading = document.getElementById('services-loading');
-    var moreWrap = document.getElementById('services-more-wrap');
     if (!wrap) return;
     if (loading) loading.classList.add('hidden');
     if (!services || services.length === 0) {
       wrap.innerHTML = '<p class="text-gray-500 col-span-full">Нет данных о сервисах (только на Linux-сервере)</p>';
-      if (moreWrap) moreWrap.classList.add('hidden');
       return;
     }
-    var activeFirst = services.filter(function (s) { return s.active_state === 'active'; });
-    var naServices = services.filter(function (s) { return s.active_state === 'n/a'; });
-    var rest = services.filter(function (s) { return s.active_state !== 'active' && s.active_state !== 'n/a'; });
-    var ordered = activeFirst.concat(naServices).concat(rest);
-    var toShow = ordered.slice(0, visibleCount);
-    var hasMore = ordered.length > INITIAL_SERVICES_VISIBLE;
-    var isExpanded = visibleCount >= ordered.length;
-    if (moreWrap) {
-      moreWrap.classList.toggle('hidden', !hasMore);
-      var btn = document.getElementById('btn-services-more');
-      if (btn) btn.textContent = isExpanded ? 'Скрыть' : 'Показать больше';
+    var ordered;
+    if (preserveOrder) {
+      ordered = services;
+    } else {
+      var activeFirst = services.filter(function (s) { return s.active_state === 'active'; });
+      var naServices = services.filter(function (s) { return s.active_state === 'n/a'; });
+      var rest = services.filter(function (s) { return s.active_state !== 'active' && s.active_state !== 'n/a'; });
+      ordered = activeFirst.concat(naServices).concat(rest);
     }
     function formatScheduleDt(iso) {
       if (!iso) return '';
@@ -329,7 +322,7 @@
         return isNaN(d.getTime()) ? iso : d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       } catch (e) { return iso; }
     }
-    wrap.innerHTML = toShow
+    wrap.innerHTML = ordered
       .map(function (s) {
         var state = (s.active_state && String(s.active_state).toLowerCase()) || '';
         var isActive = state === 'active' || state === 'running';
@@ -349,7 +342,8 @@
           : '';
         var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>';
         return (
-          '<div class="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-3 rounded-lg border border-gray-700 bg-gray-800 hover:border-gray-600">' +
+          '<div class="service-card flex flex-wrap items-center gap-x-4 gap-y-2 py-3 px-3 rounded-lg border border-gray-700 bg-gray-800 hover:border-gray-600" data-unit="' + escapeAttr(s.unit) + '">' +
+          '<span class="service-drag-handle cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 select-none px-1 -ml-1" draggable="true" title="Перетащите для изменения порядка" aria-label="Изменить порядок">⋮⋮</span>' +
           '<span class="w-2 h-2 rounded-full flex-shrink-0 ' + dot + '" aria-hidden="true"></span>' +
           '<div class="flex-1 min-w-0">' +
           '<div class="font-medium text-white">' + escapeHtml(s.label || s.unit) + '</div>' +
@@ -410,13 +404,67 @@
           .finally(function () { btn.disabled = false; });
       });
     });
+
+    var units = ordered.map(function (s) { return s.unit; });
+    wrap.querySelectorAll('.service-drag-handle').forEach(function (handle) {
+      handle.addEventListener('dragstart', function (e) {
+        var card = handle.closest('.service-card');
+        if (!card) return;
+        e.dataTransfer.setData('text/plain', card.getAttribute('data-unit') || '');
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('opacity-50');
+      });
+      handle.addEventListener('dragend', function (e) {
+        var card = handle.closest('.service-card');
+        if (card) card.classList.remove('opacity-50');
+      });
+    });
+    wrap.querySelectorAll('.service-card').forEach(function (card) {
+      card.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      });
+      card.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var draggedUnit = e.dataTransfer.getData('text/plain');
+        var targetUnit = card.getAttribute('data-unit');
+        if (!draggedUnit || !targetUnit || draggedUnit === targetUnit) return;
+        var fromIdx = units.indexOf(draggedUnit);
+        var toIdx = units.indexOf(targetUnit);
+        if (fromIdx === -1 || toIdx === -1) return;
+        var newOrder = units.slice();
+        newOrder.splice(fromIdx, 1);
+        newOrder.splice(newOrder.indexOf(targetUnit), 0, draggedUnit);
+        fetch(API + appendProjectParam('/server-services-order'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-Project': currentProject },
+          body: JSON.stringify({ order: newOrder }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText)); }); })
+          .then(function () { loadServerServices(); })
+          .catch(function (err) { alert('Не удалось сохранить порядок: ' + (err.message || err)); });
+      });
+    });
   }
 
   async function loadServerServices() {
     try {
       var data = await fetchJson('/server-services');
       allServices = data.services || [];
-      renderServerServices(allServices, INITIAL_SERVICES_VISIBLE);
+      if (data.customOrder && Array.isArray(data.customOrder)) {
+        var byUnit = {};
+        allServices.forEach(function (s) { byUnit[s.unit] = s; });
+        var sorted = [];
+        data.customOrder.forEach(function (unit) {
+          if (byUnit[unit]) {
+            sorted.push(byUnit[unit]);
+            delete byUnit[unit];
+          }
+        });
+        Object.keys(byUnit).forEach(function (unit) { sorted.push(byUnit[unit]); });
+        allServices = sorted;
+      }
+      renderServerServices(allServices, !!(data.customOrder && data.customOrder.length));
       var noteEl = document.getElementById('services-note');
       if (noteEl) {
         noteEl.textContent = data.note || '';
@@ -724,14 +772,6 @@
       } else if (currentChannel === 'taskmanager') {
         loadServerServices();
       }
-    });
-  }
-
-  var btnServicesMore = document.getElementById('btn-services-more');
-  if (btnServicesMore) {
-    btnServicesMore.addEventListener('click', function () {
-      var isExpanded = btnServicesMore.textContent === 'Скрыть';
-      renderServerServices(allServices, isExpanded ? INITIAL_SERVICES_VISIBLE : allServices.length);
     });
   }
 
