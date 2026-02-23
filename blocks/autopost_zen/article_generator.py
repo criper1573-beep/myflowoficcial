@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import sys
+import time
 import requests
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
@@ -51,7 +52,7 @@ ZEN_IMAGE_MODEL = os.getenv("ZEN_IMAGE_MODEL", "gpt-image-1")
 # ──────────────────────────────────────────────
 COVER_REF_FACE = os.getenv(
     "ZEN_COVER_REF_FACE",
-    "https://i.postimg.cc/jdwFhwpV/photo_2026_02_05_10_46_02.jpg",
+    "https://flowimage.ru/uploaded/link_1771854005939_gen_1771853841812.png.png",
 )
 COVER_REF_EXTRA = [
     "https://mayai.ru/wp-content/uploads/2025/11/06bd46d4-89a4-4ad3-bf87-a84adbf8d952.jpg",
@@ -62,6 +63,9 @@ COVER_REF_EXTRA = [
 # Ссылки только на наши ресурсы (запрет сторонних в статьях)
 # Баннер: файл в blocks/autopost_zen/articles/, при сборке копируется в папку статьи — вставка как обложка (по пути)
 BANNER_IMAGE_FILENAME = "reklamnyj-banner.png"
+# Fallback-обложка при ошибке генерации (timeout/gemini и т.д.): если файл есть в articles/, копируем в статью
+DEFAULT_COVER_FALLBACK_FILENAME = "trends_office_2026_cover.png"
+COVER_RETRY_DELAY_SEC = 8
 TELEGRAM_CHANNEL_URL = "https://t.me/myflowofficial"
 SITE_URL = "https://flowcabinet.ru"
 
@@ -400,14 +404,14 @@ class ArticleGenerator:
                 blocks.append({"type": "html", "content": part})
         return blocks
 
+    # Минимум блоков до маркера <!-- BANNER -->, иначе считаем маркер ошибочно в начале — вставляем баннер в середину
+    MIN_BLOCKS_BEFORE_BANNER = 5
+    BANNER_INSERT_AT_INDEX = 8  # индекс вставки баннера, если маркер «не на месте»
+
     def parse_html_to_blocks(self, html: str) -> List[Dict[str, Any]]:
-        """Парсит HTML в content_blocks. При наличии <!-- BANNER --> вставляет рекламный баннер и ссылку на сайт."""
+        """Парсит HTML в content_blocks. При наличии <!-- BANNER --> вставляет рекламный баннер после 3–4 шага инструкции.
+        Если маркер стоит в начале (мало блоков до него), баннер вставляется в фиксированную позицию в середине статьи."""
         banner_marker = "<!-- BANNER -->"
-        if banner_marker not in html:
-            return self._parse_html_fragments_to_blocks(html)
-        parts = html.split(banner_marker, 1)
-        before = self._parse_html_fragments_to_blocks(parts[0].strip())
-        after = self._parse_html_fragments_to_blocks(parts[1].strip())
         banner_blocks: List[Dict[str, Any]] = [
             {
                 "type": "image",
@@ -415,21 +419,50 @@ class ArticleGenerator:
                 "caption": "Планируешь ремонт в офисе? flowcabinet.ru",
             },
         ]
-        return before + banner_blocks + after
+        if banner_marker not in html:
+            return self._parse_html_fragments_to_blocks(html)
+        parts = html.split(banner_marker, 1)
+        before = self._parse_html_fragments_to_blocks(parts[0].strip())
+        after = self._parse_html_fragments_to_blocks(parts[1].strip())
+        if len(before) >= self.MIN_BLOCKS_BEFORE_BANNER:
+            return before + banner_blocks + after
+        # Маркер в начале или «не на месте» — вставляем баннер в середину контента
+        all_blocks = before + after
+        idx = min(self.BANNER_INSERT_AT_INDEX, max(1, len(all_blocks) // 2))
+        return all_blocks[:idx] + banner_blocks + all_blocks[idx:]
 
     # ── 5. Генерация картинок ──────────────────────────
     def generate_cover(self, topic: str, output_path: Path) -> bool:
-        """Генерирует обложку (1792x1024) с лицом автора."""
+        """Генерирует обложку (1792x1024). Сначала nano-banana-pro (2 попытки), при неудаче — gpt-image-1.5 как запасной вариант."""
         prompt = PROMPT_COVER.format(topic=topic)
         image_urls = [COVER_REF_FACE] + COVER_REF_EXTRA[:2]
         logger.info("Генерация обложки: %s", topic[:50])
+        # 1) nano-banana-pro (с повтором при ошибке)
+        for attempt in range(2):
+            result = self.grs.generate_image(
+                prompt=prompt,
+                model="nano-banana-pro",
+                size="1792x1024",
+                image_urls=image_urls,
+            )
+            if self._save_image_result(result, output_path):
+                return True
+            err = result.get("error") or ""
+            logger.warning("Ошибка генерации обложки nano-banana (попытка %d/2): %s", attempt + 1, err)
+            if attempt == 0:
+                time.sleep(COVER_RETRY_DELAY_SEC)
+        # 2) Запасной вариант: gpt-image-1.5 (без референсов)
+        logger.info("Пробуем запасную модель gpt-image-1.5 для обложки")
         result = self.grs.generate_image(
             prompt=prompt,
-            model="nano-banana-pro",
+            model="gpt-image-1.5",
             size="1792x1024",
-            image_urls=image_urls,
+            image_urls=None,
         )
-        return self._save_image_result(result, output_path)
+        if self._save_image_result(result, output_path):
+            return True
+        logger.warning("Ошибка генерации обложки gpt-image-1.5: %s", result.get("error"))
+        return False
 
     def generate_article_image(self, section_title: str, headline: str, output_path: Path) -> bool:
         """Генерирует картинку для секции статьи (1024x1024). Пробует ZEN_IMAGE_MODEL, при ошибке — nano-banana."""
@@ -492,6 +525,13 @@ class ArticleGenerator:
         cover_name = "cover.png"
         cover_path = article_dir / cover_name
         cover_ok = self.generate_cover(topic, cover_path)
+        if not cover_ok:
+            # Fallback: дефолтная обложка из articles/ (при timeout/gemini и т.д.)
+            fallback_src = BLOCK_DIR / "articles" / DEFAULT_COVER_FALLBACK_FILENAME
+            if fallback_src.is_file():
+                shutil.copy2(fallback_src, cover_path)
+                cover_ok = True
+                logger.info("Использована fallback-обложка: %s", DEFAULT_COVER_FALLBACK_FILENAME)
         if cover_ok:
             content_blocks.insert(0, {
                 "type": "image",
@@ -567,6 +607,10 @@ class ArticleGenerator:
 
         # 6. Сборка (парсинг с вставкой баннера + картинки + meta + теги)
         article_data = self.build_article(headline, topic, article_html, article_dir)
+
+        # Без обложки не публикуем — не сохраняем статью и не идём дальше по циклу
+        if not article_data.get("cover_image"):
+            raise RuntimeError("Обложка не сгенерирована, публикация отменена (без мусора в каналах)")
 
         # 7. Сохранение
         article_path = self.save_article(article_data, article_dir)
