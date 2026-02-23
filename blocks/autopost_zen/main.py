@@ -6,7 +6,8 @@ CLI автопостинга в Дзен: --file, --auto, --publish, --headless,
 Запуск:
   python -m blocks.autopost_zen --file articles/article.json [--publish]
   python -m blocks.autopost_zen --auto --publish   # генерация из Google Sheets + публикация
-  python -m blocks.autopost_zen --schedule        # оркестратор контент завода: пробный запуск при старте + 5 слотов в день
+  python -m blocks.autopost_zen --schedule        # оркестратор контент завода: только запуски по расписанию (5 слотов в день)
+  python -m blocks.autopost_zen --run-once        # разовый прогон цепочки (вручную)
 """
 import argparse
 import asyncio
@@ -261,7 +262,9 @@ def main() -> int:
     parser.add_argument("--headless", action="store_true", help="Запуск браузера без окна")
     parser.add_argument("--keep-open", action="store_true", help="Не закрывать браузер")
     parser.add_argument("--schedule", "-s", action="store_true",
-                        help="Оркестратор контент завода: пробный запуск при старте, затем 5 слотов в день по расписанию")
+                        help="Оркестратор контент завода: только расписание (5 слотов в день)")
+    parser.add_argument("--run-once", action="store_true",
+                        help="Разовый прогон цепочки вне расписания (ручной запуск, не меняет план)")
     parser.add_argument("--pause-orchestrator", action="store_true",
                         help="Создать файл приостановки: оркестратор при следующем старте сразу выйдет без генерации и расписания")
     parser.add_argument("--resume-orchestrator", action="store_true",
@@ -289,6 +292,10 @@ def main() -> int:
     if args.schedule:
         from .scheduler import run_scheduler_loop
         run_scheduler_loop()
+        return 0
+    if args.run_once:
+        from .scheduler import run_one_off_now
+        run_one_off_now()
         return 0
 
     if args.auto:
