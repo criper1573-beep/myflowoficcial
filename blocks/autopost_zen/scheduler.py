@@ -3,7 +3,7 @@
 Оркестратор контент завода: регулярные публикации (Дзен, Telegram) — 5 слотов в день.
 Запуск: python -m blocks.autopost_zen --schedule
 
-При старте выполняется один пробный запуск цепочки, затем работа по расписанию.
+При старте запускается только режим расписания (без пробного запуска).
 
 Окна (локальное время):
   1) 10:00–10:30
@@ -39,6 +39,7 @@ FAILED_PUBLICATIONS_FILE = config.PROJECT_ROOT / "storage" / "failed_publication
 from .zen_client import run_post_flow, PUBLISH_DIR
 
 LOG = logging.getLogger("autopost_zen.scheduler")
+DEBUG_LOG_FILE = config.PROJECT_ROOT / "debug-441024.log"
 
 # Окна: (час_начала, минута_начала, час_конца, минута_конца)
 SCHEDULE_WINDOWS = [
@@ -50,11 +51,27 @@ SCHEDULE_WINDOWS = [
 ]
 
 RETRY_DELAYS_SEC = [0, 60, 180]  # сразу, через 1 мин, через 3 мин
-# Не делать повторный пробный запуск при старте, если уже был запуск недавно (защита от лишних генераций при рестартах/деплоях)
-MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC = 7200  # 2 часа
 # Жёсткий таймаут на шаг публикации в Дзен, чтобы run не зависал бесконечно в статусе running.
 ZEN_PUBLISH_TIMEOUT_SEC = int(os.getenv("ZEN_PUBLISH_TIMEOUT_SEC", "900"))  # 15 минут
 ORCHESTRATOR_TAKEOVER_WAIT_SEC = 12  # ожидание после SIGTERM старому процессу
+
+
+def _debug_log(hypothesis_id: str, run_id: str, message: str, data: dict) -> None:
+    """Agent debug log for runtime evidence (NDJSON)."""
+    payload = {
+        "sessionId": "441024",
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+        "location": "blocks/autopost_zen/scheduler.py",
+        "message": message,
+        "data": data,
+        "timestamp": int(time.time() * 1000),
+    }
+    try:
+        with open(DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 def _random_time_in_window(base_date: date, h1: int, m1: int, h2: int, m2: int) -> datetime:
@@ -171,8 +188,8 @@ def _append_failed_publication(
 def _close_stale_schedule_runs() -> None:
     """
     Закрывает «висящие» schedule-запуски как failed.
-    Нужен после рестарта/kill: старый процесс может умереть до finish_run(),
-    и в дашборде остаётся второй синий запуск на «Генерация статьи».
+    Вызывается только перед стартом нового слота (не при старте процесса), чтобы не помечать
+    старый run как прерванный, если новый слот так и не начнётся (рестарт и выход, пауза и т.д.).
     """
     project = (os.getenv("ANALYTICS_PROJECT") or analytics_db.DEFAULT_PROJECT).strip()
     if project not in analytics_db.PROJECTS:
@@ -207,14 +224,15 @@ def _close_stale_schedule_runs() -> None:
             conn.close()
 
 
-def _run_one_slot() -> None:
+def _run_one_slot(run_source: str = "schedule") -> None:
     """Один слот: генерация (3 попытки) → Telegram → Дзен (3 попытки). Ошибки пишутся в аналитику."""
+    _close_stale_schedule_runs()  # закрыть висящие schedule-запуски только перед стартом нового (планового или ручного)
     from .article_generator import ArticleGenerator
 
     try:
         from blocks.analytics.tracker import RunTracker
         tracker = RunTracker()
-        run_id = tracker.start_run(source="schedule")
+        run_id = tracker.start_run(source=run_source)
         use_tracker = True
     except Exception as e:
         LOG.warning("Аналитика недоступна: %s", e)
@@ -254,6 +272,14 @@ def _run_one_slot() -> None:
     article_path = None
     article_dir = None
     row_index = None
+    # #region agent log
+    _debug_log(
+        "H3",
+        "pre-fix",
+        "slot_started",
+        {"run_source": run_source, "tracker_enabled": use_tracker},
+    )
+    # #endregion
 
     try:
         # ─── Генерация (3 попытки) ───
@@ -367,6 +393,17 @@ def _run_one_slot() -> None:
         raise
 
 
+def run_one_off_now() -> None:
+    """Разовый прогон цепочки вне расписания. Не влияет на next_run_at/last_run_at плана."""
+    # #region agent log
+    _debug_log("H2", "pre-fix", "manual_run_requested", {"entrypoint": "run_one_off_now"})
+    # #endregion
+    _run_one_slot(run_source="manual_once")
+    # #region agent log
+    _debug_log("H2", "pre-fix", "manual_run_finished", {"entrypoint": "run_one_off_now"})
+    # #endregion
+
+
 def _acquire_orchestrator_lock():
     """
     Эксклюзивная блокировка: только один процесс оркестратора может работать.
@@ -470,8 +507,7 @@ def _acquire_orchestrator_lock():
 def run_scheduler_loop() -> None:
     """
     Бесконечный цикл оркестратора.
-    ОБЯЗАТЕЛЬНО: при каждом старте сервиса сначала выполняется один полный прогон цепочки
-    (генерация → Telegram → Дзен), чтобы убедиться, что всё работает. Расписание — отдельно, после прогона.
+    Запускает только расписание. Никаких пробных прогонов при старте процесса.
     Только один экземпляр оркестратора может работать (файловая блокировка на Linux).
     Если существует файл storage/orchestrator_kz_paused — оркестратор сразу выходит (без генерации и расписания).
     """
@@ -483,8 +519,17 @@ def run_scheduler_loop() -> None:
         )
         sys.exit(0)
 
+    # #region agent log
+    _debug_log(
+        "H1",
+        "pre-fix",
+        "scheduler_start_without_startup_run",
+        {"startup_run_enabled": False},
+    )
+    # #endregion
+
     _lock_file = _acquire_orchestrator_lock()  # держим ссылку, чтобы файл не закрылся и lock не снялся
-    _close_stale_schedule_runs()
+    # Не закрываем stale runs при старте: только когда реально начнётся новый слот (см. цикл ниже).
 
     # Проверка Telegram при старте: если не заданы токены — в логах будет видно (на сервере скопировать .env с компа)
     try:
@@ -499,33 +544,7 @@ def run_scheduler_loop() -> None:
     except Exception as e:
         LOG.warning("Проверка Telegram при старте: %s", e)
 
-    LOG.info("Оркестратор контент завода: запущен. 5 слотов в день: 10:00–10:30, 11:30–12:00, 13:00–13:30, 14:00–14:30, 15:20–16:40")
-    # ОБЯЗАТЕЛЬНЫЙ пробный запуск при старте — пропускаем, если уже был запуск за последние 2 часа (защита от лишних генераций при рестартах)
-    state = _read_schedule_state()
-    last_run_str = state.get("last_run_at")
-    skip_startup_run = False
-    if last_run_str:
-        try:
-            last_run = datetime.fromisoformat(last_run_str.replace("Z", "+00:00"))
-            if last_run.tzinfo:
-                last_run = last_run.astimezone().replace(tzinfo=None)
-            elapsed = (datetime.now() - last_run).total_seconds()
-            if elapsed >= 0 and elapsed < MIN_INTERVAL_BETWEEN_STARTUP_RUNS_SEC:
-                skip_startup_run = True
-                LOG.info(
-                    "Оркестратор: пропуск пробного запуска при старте (последний запуск был %.0f мин назад).",
-                    elapsed / 60,
-                )
-        except (ValueError, TypeError):
-            pass
-    if not skip_startup_run:
-        LOG.info("Оркестратор: обязательный пробный запуск цепочки при старте (вне расписания)…")
-        try:
-            _run_one_slot()
-            _write_schedule_state(last_run_at=datetime.now())
-            LOG.info("Оркестратор: пробный запуск завершён успешно. Переход к работе по расписанию.")
-        except Exception as e:
-            LOG.exception("Ошибка при пробном запуске: %s. Продолжаем по расписанию.", e)
+    LOG.info("Оркестратор контент завода: запущен. Режим: только расписание (без автопрогона при старте). Слоты: 10:00–10:30, 11:30–12:00, 13:00–13:30, 14:00–14:30, 15:20–16:40")
     next_slot = _get_next_slot()
     _write_schedule_state(next_run_at=next_slot)
 

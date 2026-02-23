@@ -338,7 +338,7 @@
         var scheduleLine = (lastRun || nextRun) ? (lastRun ? 'Последний: ' + lastRun : '') + (lastRun && nextRun ? ' · ' : '') + (nextRun ? 'След.: ' + nextRun : '') : '';
         var openBtn = url ? '<a href="' + escapeAttr(url) + '" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded text-sm bg-gray-700 text-gray-200 hover:bg-gray-600">Открыть сайт</a>' : '';
         var runOnce = (!isLocalItem && s.unit === 'orchestrator-kz')
-          ? '<button type="button" class="service-run-once px-3 py-1.5 rounded text-sm bg-blue-700/80 text-white hover:bg-blue-600" data-unit="' + escapeAttr(s.unit) + '">Разовый прогон</button>'
+          ? '<button type="button" class="service-run-once px-3 py-1.5 rounded text-sm bg-blue-700/80 text-white hover:bg-blue-600" data-unit="' + escapeAttr(s.unit) + '">Разовый прогон</button><a href="' + escapeAttr(API + appendProjectParam('/server-services/orchestrator-kz/run-once-log')) + '" target="_blank" rel="noopener noreferrer" class="text-sm text-gray-400 hover:text-gray-300 underline">Лог run-once</a>'
           : '';
         var startStop = isLocalItem ? '' : '<button type="button" class="service-start px-3 py-1.5 rounded text-sm bg-green-700/80 text-white hover:bg-green-600" data-unit="' + escapeAttr(s.unit) + '">Запустить</button><button type="button" class="service-stop px-3 py-1.5 rounded text-sm bg-red-700/80 text-white hover:bg-red-600" data-unit="' + escapeAttr(s.unit) + '">Остановить</button>';
         return (
@@ -420,11 +420,14 @@
             // #endregion
             return r.ok ? d : Promise.reject(new Error(d.detail || r.statusText));
           }); })
-          .then(function () {
+          .then(function (data) {
             // #region agent log
             fetch('http://127.0.0.1:7427/ingest/fa4e9b13-c69d-40bc-9316-35f36e3f9cef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'441024'},body:JSON.stringify({sessionId:'441024',runId:'pre-fix',hypothesisId:'H4',location:'blocks/analytics/static/app.js',message:'run_once_request_ok',data:{unit:'orchestrator-kz'},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
-            alert('Разовый прогон запущен.');
+            var msg = 'Разовый прогон запущен.';
+            if (data && data.pid) msg += ' (PID ' + data.pid + ')';
+            msg += ' Если run не появился на главной — откройте ссылку «Лог run-once» в этой карточке.';
+            alert(msg);
             loadServerServices();
           })
           .catch(function (e) { alert('Ошибка: ' + (e.message || e)); })

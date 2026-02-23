@@ -13,7 +13,7 @@ from urllib.request import Request as UrlRequest, urlopen
 from urllib.error import URLError, HTTPError
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db
@@ -397,6 +397,27 @@ def _proxy_post_to_remote(path: str, request: Request) -> dict:
         raise HTTPException(status_code=502, detail=f"Не удалось связаться с сервером: {e!s}")
 
 
+def _proxy_get_to_remote(path: str, request: Request, query: str = "") -> bytes:
+    """GET с удалённого сервера (для просмотра лога run-once при локальном дашборде)."""
+    base = _remote_base()
+    if not base:
+        raise HTTPException(status_code=501, detail="Задайте ANALYTICS_SERVER_SERVICES_URL для просмотра лога с сервера.")
+    url = base + path + ("?" + query if query else "")
+    try:
+        req = UrlRequest(url, headers={"Accept": "text/plain", "X-Requested-Project": _project_from_request(request) or ""})
+        with urlopen(req, timeout=10) as r:
+            return r.read()
+    except HTTPError as e:
+        try:
+            detail = e.read().decode() if e.fp else str(e.reason or e.code)
+        except Exception:
+            detail = str(e.reason or e.code)
+        raise HTTPException(status_code=e.code, detail=detail)
+    except (URLError, ValueError, OSError) as e:
+        logger.warning("Прокси GET %s: %s", url, e)
+        raise HTTPException(status_code=502, detail=f"Не удалось связаться с сервером: {e!s}")
+
+
 @app.get("/api/server-services")
 def api_server_services(request: Request):
     """
@@ -622,26 +643,38 @@ def api_orchestrator_run_once(request: Request):
     """Разовый прогон цепочки оркестратора (на Linux — локально; иначе — прокси на ANALYTICS_SERVER_SERVICES_URL)."""
     if sys.platform != "linux":
         return _proxy_post_to_remote("/api/server-services/orchestrator-kz/run-once", request)
+    project = _project_from_request(request) or os.environ.get("ANALYTICS_PROJECT", "flow")
     python_bin = (_PROJECT_ROOT / "venv" / "bin" / "python")
     if not python_bin.exists():
         python_bin = Path(sys.executable)
     cmd = [str(python_bin), "-m", "blocks.autopost_zen", "--run-once"]
+    env = os.environ.copy()
+    env["ANALYTICS_PROJECT"] = project
+    run_once_stderr = _PROJECT_ROOT / "storage" / "run_once_stderr.log"
+    run_once_stderr.parent.mkdir(parents=True, exist_ok=True)
     try:
         # #region agent log
         _append_debug_log(
             "H4",
             "pre-fix",
             "manual_run_endpoint_called",
-            {"cmd": cmd, "cwd": str(_PROJECT_ROOT)},
+            {"cmd": cmd, "cwd": str(_PROJECT_ROOT), "project": project},
         )
         # #endregion
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(_PROJECT_ROOT),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-        )
+        with open(run_once_stderr, "a", encoding="utf-8") as errf:
+            errf.write(f"\n--- run-once started {datetime.now().isoformat()} (project={project}) ---\n")
+        err_fd = os.open(str(run_once_stderr), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(_PROJECT_ROOT),
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=err_fd,
+                start_new_session=True,
+            )
+        finally:
+            os.close(err_fd)  # дочерний процесс уже унаследовал копию fd
         # #region agent log
         _append_debug_log(
             "H4",
@@ -655,6 +688,36 @@ def api_orchestrator_run_once(request: Request):
         raise HTTPException(status_code=503, detail="Python для оркестратора не найден")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+_RUN_ONCE_LOG_MAX_BYTES = 16 * 1024
+
+
+@app.get("/api/server-services/orchestrator-kz/run-once-log", response_class=PlainTextResponse)
+def api_orchestrator_run_once_log(request: Request):
+    """Последние строки лога stderr разового прогона (для диагностики, если run не появился)."""
+    if sys.platform != "linux":
+        q = request.scope.get("query_string", b"").decode("utf-8", errors="replace")
+        try:
+            body = _proxy_get_to_remote("/api/server-services/orchestrator-kz/run-once-log", request, q)
+            return PlainTextResponse(body.decode("utf-8", errors="replace"))
+        except HTTPException:
+            raise
+    path = _PROJECT_ROOT / "storage" / "run_once_stderr.log"
+    if not path.exists():
+        return PlainTextResponse("(файл лога ещё не создан; нажмите «Разовый прогон» и обновите эту страницу)")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            if size <= _RUN_ONCE_LOG_MAX_BYTES:
+                f.seek(0)
+                return PlainTextResponse(f.read())
+            f.seek(size - _RUN_ONCE_LOG_MAX_BYTES)
+            f.read(1)  # перейти на начало строки после обрезки
+            return PlainTextResponse("...(обрезано, последние ~16KB)\n\n" + f.read())
+    except Exception as e:
+        return PlainTextResponse(f"(ошибка чтения лога: {e})")
 
 
 # --- Generation: статистика по картинкам и ссылкам (grs_image_web) ---
