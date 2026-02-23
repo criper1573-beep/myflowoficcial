@@ -223,6 +223,19 @@
       var runBtn = document.getElementById('btn-runs-more');
       if (runBtn) runBtn.textContent = isExpanded ? 'Скрыть' : 'Показать больше';
     }
+    function formatRunStartedAt(iso) {
+      if (!iso) return '';
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        var day = ('0' + d.getDate()).slice(-2);
+        var month = ('0' + (d.getMonth() + 1)).slice(-2);
+        var year = d.getFullYear();
+        var h = ('0' + d.getHours()).slice(-2);
+        var m = ('0' + d.getMinutes()).slice(-2);
+        return day + '.' + month + '.' + year + ', ' + h + ':' + m;
+      } catch (e) { return iso; }
+    }
     container.innerHTML = toShow
       .map(function (run) {
         var topic = (run.topic || '').slice(0, 60) + (run.topic && run.topic.length > 60 ? '…' : '');
@@ -240,6 +253,9 @@
         var errorBtnHtml = runError
           ? '<button type="button" class="run-show-error mt-2 px-3 py-1.5 rounded bg-red-900/50 text-red-300 text-sm hover:bg-red-800/50" data-error-label="' + escapeAttr(runError.label) + '" data-error-message="' + escapeAttr(runError.message) + '">Показать ошибку</button>'
           : '';
+        var startedAtHtml = run.started_at
+          ? '<div class="text-xs text-gray-500 mb-2">Начало: ' + escapeHtml(formatRunStartedAt(run.started_at)) + '</div>'
+          : '';
         return (
           '<div class="run-card bg-gray-800 rounded-lg p-4 border border-gray-700" data-run-id="' +
           run.id +
@@ -251,6 +267,7 @@
           '">' + (run.status === 'running' ? 'выполняется' : run.status === 'completed' ? 'успех' : 'ошибка') + '</span>' +
           (run.source ? '<span class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400" title="Источник">' + escapeHtml(sourceLabel(run.source)) + '</span>' : '') +
           '</div>' +
+          startedAtHtml +
           '<p class="text-gray-400 text-sm mb-3">' + escapeHtml(topic) + '</p>' +
           '<div class="flex flex-wrap gap-2 sm:gap-3 items-center">' + stepsHtml + '</div>' +
           errorBtnHtml +
