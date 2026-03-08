@@ -76,6 +76,17 @@ class GRSAIClient:
         
         self.endpoint = f"{self.config.base_url}/v1/chat/completions"
         self.session = requests.Session()
+        retry_strategy = requests.adapters.HTTPAdapter(
+            max_retries=requests.packages.urllib3.util.retry.Retry(
+                total=3,
+                backoff_factor=0.5,
+                status_forcelist=[502, 503, 504],
+                allowed_methods=["POST"],
+                raise_on_status=False,
+            ),
+        )
+        self.session.mount("https://", retry_strategy)
+        self.session.mount("http://", retry_strategy)
         self.session.headers.update({
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json"
@@ -232,34 +243,58 @@ class GRSAIClient:
         if max_tokens is not None:
             data["max_tokens"] = max_tokens
         
-        try:
-            response = self.session.post(
-                self.endpoint,
-                json=data,
-                timeout=self.config.timeout
-            )
-            response.encoding = "utf-8"  # КРИТИЧНО для кириллицы
-            response.raise_for_status()
+        last_err = None
+        max_attempts = 5
+        delay_sec = 2
+        for attempt in range(max_attempts):
+            try:
+                response = self.session.post(
+                    self.endpoint,
+                    json=data,
+                    timeout=self.config.timeout
+                )
+                response.encoding = "utf-8"
+                response.raise_for_status()
+                
+                result = response.json()
+                
+                if result.get("code") != 0 and "code" in result:
+                    error_msg = result.get("msg", "Unknown error")
+                    raise Exception(f"GRS AI API Error: {error_msg}")
+                
+                response_text = self._parse_response(result)
+                
+                if not response_text:
+                    raise Exception("Empty response from API")
+                
+                return response_text
             
-            result = response.json()
-            
-            # Проверка на ошибку API
-            if result.get("code") != 0 and "code" in result:
-                error_msg = result.get("msg", "Unknown error")
-                raise Exception(f"GRS AI API Error: {error_msg}")
-            
-            # Парсинг ответа - проверяем все возможные форматы
-            response_text = self._parse_response(result)
-            
-            if not response_text:
-                raise Exception("Empty response from API")
-            
-            return response_text
-        
-        except requests.exceptions.Timeout:
-            raise Exception(f"Request timeout after {self.config.timeout} seconds")
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Request failed: {e}")
+            except requests.exceptions.Timeout:
+                raise Exception(f"Request timeout after {self.config.timeout} seconds")
+            except (requests.exceptions.ConnectionError, ConnectionResetError, OSError) as e:
+                last_err = e
+                logger.warning("Connection error (attempt %d/%d): %s — retrying in %ds", attempt + 1, max_attempts, e, delay_sec)
+                self.session.close()
+                self.session = requests.Session()
+                retry_adapter = requests.adapters.HTTPAdapter(
+                    max_retries=requests.packages.urllib3.util.retry.Retry(
+                        total=3, backoff_factor=0.5,
+                        status_forcelist=[502, 503, 504], allowed_methods=["POST"], raise_on_status=False,
+                    ),
+                )
+                self.session.mount("https://", retry_adapter)
+                self.session.mount("http://", retry_adapter)
+                self.session.headers.update({
+                    "Authorization": f"Bearer {self.config.api_key}",
+                    "Content-Type": "application/json"
+                })
+                if attempt < max_attempts - 1:
+                    import time
+                    time.sleep(delay_sec)
+                continue
+            except requests.exceptions.RequestException as e:
+                raise Exception(f"Request failed: {e}")
+        raise Exception(f"Request failed after retries: {last_err}")
     
     def _parse_response(self, result: Dict[str, Any]) -> str:
         """
@@ -382,8 +417,9 @@ class GRSAIClient:
                 "size": size,
                 "urls": urls,
             }
+        timeout_sec = int(os.getenv("GRS_IMAGE_TIMEOUT", "120"))
         try:
-            response = self.session.post(endpoint, json=data, timeout=120)
+            response = self.session.post(endpoint, json=data, timeout=timeout_sec)
             response.encoding = "utf-8"
             response.raise_for_status()
             text = response.text or ""
@@ -497,6 +533,152 @@ class GRSAIClient:
         except Exception as e:
             logger.exception("Image generation failed: %s", e)
             return {"success": False, "error": str(e)}
+
+    def get_draw_result(self, task_id: str) -> Dict[str, Any]:
+        """
+        Получить результат задачи по id (рисование/видео).
+        POST /v1/draw/result с телом {"id": task_id}.
+        """
+        base = self.config.base_url.rstrip("/")
+        endpoint = f"{base}/v1/draw/result"
+        timeout_sec = int(os.getenv("GRS_IMAGE_TIMEOUT", "120"))
+        try:
+            response = self.session.post(
+                endpoint, json={"id": task_id}, timeout=timeout_sec
+            )
+            response.encoding = "utf-8"
+            response.raise_for_status()
+            result = response.json()
+        except Exception as e:
+            logger.exception("get_draw_result failed: %s", e)
+            return {"success": False, "error": str(e), "status": "error"}
+        status = result.get("status") or result.get("data", {}).get("status")
+        if status in ("running", "pending", "processing"):
+            return {"success": False, "pending": True, "status": status}
+        if result.get("code") is not None and result.get("code") != 0:
+            return {
+                "success": False,
+                "error": result.get("msg", "Unknown error"),
+                "status": "failed",
+            }
+        if status == "failed":
+            err = (
+                result.get("error")
+                or result.get("failure_reason")
+                or result.get("msg")
+                or "Generation failed"
+            )
+            return {"success": False, "error": err, "status": "failed"}
+        data = result.get("data")
+        if isinstance(data, list) and data:
+            data = data[0]
+        if not isinstance(data, dict):
+            data = result
+        url = (
+            (data.get("url") if isinstance(data, dict) else None)
+            or result.get("url")
+        )
+        if url:
+            return {"success": True, "url": url, "status": "completed"}
+        b64 = (
+            (data.get("b64_json") or data.get("video") or data.get("image"))
+            if isinstance(data, dict)
+            else None
+        ) or result.get("b64_json") or result.get("video")
+        if b64:
+            return {"success": True, "b64_json": b64, "status": "completed"}
+        return {"success": False, "error": "No url or video in response", "status": "unknown"}
+
+    def generate_video_sora(
+        self,
+        prompt: str,
+        image_url: Optional[str] = None,
+        aspect_ratio: str = "9:16",
+        duration: str = "10",
+        size: str = "Small",
+    ) -> Dict[str, Any]:
+        """
+        Генерация видео через Sora 2. POST /v1/video/sora-video.
+        Возвращает либо { success, url или b64_json }, либо { success, task_id } для опроса get_draw_result.
+        """
+        base = self.config.base_url.rstrip("/")
+        endpoint = f"{base}/v1/video/sora-video"
+        payload = {
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "duration": duration,
+            "size": size,
+        }
+        if image_url:
+            payload["image"] = image_url
+        timeout_sec = int(os.getenv("GRS_VIDEO_TIMEOUT", "180"))
+        try:
+            response = self.session.post(endpoint, json=payload, timeout=timeout_sec)
+            response.encoding = "utf-8"
+            response.raise_for_status()
+            result = response.json()
+        except Exception as e:
+            logger.exception("Sora video request failed: %s", e)
+            return {"success": False, "error": str(e)}
+        task_id = result.get("id") or result.get("task_id") or result.get("data", {}).get("id")
+        if task_id:
+            return {"success": True, "task_id": str(task_id)}
+        data = result.get("data")
+        if isinstance(data, list) and data:
+            data = data[0]
+        if not isinstance(data, dict):
+            data = result
+        url = (data.get("url") if isinstance(data, dict) else None) or result.get("url")
+        if url:
+            return {"success": True, "url": url}
+        b64 = (
+            (data.get("b64_json") or data.get("video")) if isinstance(data, dict) else None
+        ) or result.get("b64_json") or result.get("video")
+        if b64:
+            return {"success": True, "b64_json": b64}
+        return {"success": False, "error": "No task_id, url or video in Sora response"}
+
+    def generate_video_veo(
+        self,
+        prompt: str,
+        image_url: Optional[str] = None,
+        aspect_ratio: str = "16:9",
+    ) -> Dict[str, Any]:
+        """
+        Генерация видео через Veo. POST /v1/video/veo.
+        Возвращает либо { success, url или b64_json }, либо { success, task_id } для опроса get_draw_result.
+        """
+        base = self.config.base_url.rstrip("/")
+        endpoint = f"{base}/v1/video/veo"
+        payload = {"prompt": prompt, "aspect_ratio": aspect_ratio}
+        if image_url:
+            payload["image"] = image_url
+        timeout_sec = int(os.getenv("GRS_VIDEO_TIMEOUT", "180"))
+        try:
+            response = self.session.post(endpoint, json=payload, timeout=timeout_sec)
+            response.encoding = "utf-8"
+            response.raise_for_status()
+            result = response.json()
+        except Exception as e:
+            logger.exception("Veo video request failed: %s", e)
+            return {"success": False, "error": str(e)}
+        task_id = result.get("id") or result.get("task_id") or (result.get("data") or {}).get("id")
+        if task_id:
+            return {"success": True, "task_id": str(task_id)}
+        data = result.get("data")
+        if isinstance(data, list) and data:
+            data = data[0]
+        if not isinstance(data, dict):
+            data = result
+        url = (data.get("url") if isinstance(data, dict) else None) or result.get("url")
+        if url:
+            return {"success": True, "url": url}
+        b64 = (
+            (data.get("b64_json") or data.get("video")) if isinstance(data, dict) else None
+        ) or result.get("b64_json") or result.get("video")
+        if b64:
+            return {"success": True, "b64_json": b64}
+        return {"success": False, "error": "No task_id, url or video in Veo response"}
 
 
 # Пример использования

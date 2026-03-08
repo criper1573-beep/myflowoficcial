@@ -123,6 +123,19 @@ class ImprovePromptRequest(BaseModel):
     prompt: str = Field("", min_length=0)
 
 
+class GenerateVideoRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    model: str = Field(..., pattern="^(sora-2|veo)$")
+    ref: str | None = Field(default=None)
+    aspect_ratio: str | None = Field(default=None)
+    duration: str | None = Field(default=None)  # Sora: "10" | "15"
+    size: str | None = Field(default=None)  # Sora: "Small" | "Large"
+
+
+class VideoResultRequest(BaseModel):
+    task_id: str = Field(..., min_length=1)
+
+
 def _get_grs_client():
     from blocks.ai_integrations.grs_ai_client import GRSAIClient
     return GRSAIClient()
@@ -156,6 +169,32 @@ def _save_image_from_result(result: dict, save_dir: Path) -> tuple[str, Path] | 
     else:
         return None
 
+    filename = f"gen_{ts}.{ext}"
+    path = save_dir / filename
+    path.write_bytes(data)
+    return filename, path
+
+
+def _save_video_from_result(result: dict, save_dir: Path) -> tuple[str, Path] | None:
+    """Сохраняет видео из ответа GRS в save_dir. Возвращает (filename, path) или None."""
+    save_dir.mkdir(parents=True, exist_ok=True)
+    ts = int(time.time() * 1000)
+    ext = "mp4"
+    if result.get("url"):
+        try:
+            req = urllib.request.Request(result["url"], headers={"User-Agent": "GRS-Image-Web/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                content_type = (r.headers.get("Content-Type") or "").lower()
+                data = r.read()
+            if "webm" in content_type:
+                ext = "webm"
+        except Exception as e:
+            logger.warning("Не удалось скачать видео по url: %s", e)
+            return None
+    elif result.get("b64_json"):
+        data = base64.b64decode(result["b64_json"])
+    else:
+        return None
     filename = f"gen_{ts}.{ext}"
     path = save_dir / filename
     path.write_bytes(data)
@@ -354,6 +393,110 @@ def api_history(request: Request):
     return {"items": files}
 
 
+@app.post("/api/generate-video")
+def api_generate_video(request: Request, body: GenerateVideoRequest):
+    """Генерация видео: Sora 2 или Veo. Возвращает taskId для опроса или сразу videoUrl."""
+    if not os.getenv("GRS_AI_API_KEY"):
+        raise HTTPException(status_code=503, detail="GRS_AI_API_KEY не настроен")
+    tid = _get_tid_from_request(request)
+    if tid is None and not REQUIRE_AUTH:
+        tid = 0
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    save_dir = get_generated_dir(BLOCK_DIR, tid)
+    ref = (body.ref or "").strip()
+    if ref and not ref.startswith("data:"):
+        ref = None
+    try:
+        client = _get_grs_client()
+        if body.model == "sora-2":
+            aspect = (body.aspect_ratio or "9:16").strip() or "9:16"
+            duration = (body.duration or "10").strip() or "10"
+            size = (body.size or "Small").strip() or "Small"
+            result = client.generate_video_sora(
+                prompt=body.prompt.strip(),
+                image_url=ref or None,
+                aspect_ratio=aspect,
+                duration=duration,
+                size=size,
+            )
+        else:
+            aspect = (body.aspect_ratio or "16:9").strip() or "16:9"
+            result = client.generate_video_veo(
+                prompt=body.prompt.strip(),
+                image_url=ref or None,
+                aspect_ratio=aspect,
+            )
+    except Exception as e:
+        logger.exception("GRS generate_video: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("error", "Генерация видео не вернула результат"),
+        )
+    if result.get("task_id"):
+        return {"success": True, "taskId": result["task_id"]}
+    saved = _save_video_from_result(result, save_dir)
+    if not saved:
+        raise HTTPException(status_code=502, detail="Не удалось сохранить видео")
+    filename, _ = saved
+    return {
+        "success": True,
+        "videoUrl": f"/generated/{tid}/{filename}",
+        "id": filename,
+    }
+
+
+@app.post("/api/video-result")
+def api_video_result(request: Request, body: VideoResultRequest):
+    """Опрос результата видео по task_id. При готовности сохраняет файл и возвращает videoUrl."""
+    tid = _get_tid_from_request(request)
+    if tid is None and not REQUIRE_AUTH:
+        tid = 0
+    if tid is None:
+        raise HTTPException(status_code=401, detail="Требуется авторизация через Telegram")
+    save_dir = get_generated_dir(BLOCK_DIR, tid)
+    try:
+        client = _get_grs_client()
+        result = client.get_draw_result(body.task_id.strip())
+    except Exception as e:
+        logger.exception("get_draw_result: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
+    if result.get("pending"):
+        return {"success": False, "pending": True}
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "Unknown error")}
+    saved = _save_video_from_result(result, save_dir)
+    if not saved:
+        return {"success": False, "error": "Не удалось сохранить видео"}
+    filename, _ = saved
+    return {
+        "success": True,
+        "videoUrl": f"/generated/{tid}/{filename}",
+        "id": filename,
+    }
+
+
+@app.get("/api/history/video")
+def api_history_video(request: Request):
+    """Последние 20 сгенерированных видео текущего пользователя."""
+    tid = _get_tid_from_request(request)
+    if tid is None and not REQUIRE_AUTH:
+        tid = 0
+    if tid is None:
+        return {"items": []}
+    user_dir = get_generated_dir(BLOCK_DIR, tid)
+    if not user_dir.exists():
+        return {"items": []}
+    exts = (".mp4", ".webm")
+    all_files = [p for p in user_dir.iterdir() if p.is_file() and p.suffix.lower() in exts]
+    files = []
+    for p in sorted(all_files, key=lambda x: x.stat().st_mtime, reverse=True)[:20]:
+        files.append({"id": p.name, "url": f"/generated/{tid}/{p.name}"})
+    return {"items": files}
+
+
 @app.get("/generated/{filename:path}")
 def serve_generated(filename: str):
     """Раздача файла из папки generated (только существующие файлы в этой папке)."""
@@ -477,6 +620,15 @@ def index():
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Static files not found")
     return FileResponse(index_path)
+
+
+@app.get("/video")
+def video_page():
+    """Страница генерации видео (Sora 2 / Veo)."""
+    video_path = STATIC_DIR / "video.html"
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Page not found")
+    return FileResponse(video_path)
 
 
 if STATIC_DIR.exists():

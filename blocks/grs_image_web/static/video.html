@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru" id="html-theme" class="theme-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Генерация видео — FLOW</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="/static/style.css" rel="stylesheet" />
+</head>
+<body class="page-body min-h-screen">
+  <div id="app" class="container mx-auto px-3 sm:px-6 py-4 sm:py-6 max-w-3xl">
+    <header class="mb-6 space-y-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold page-title">Генерация видео</h1>
+        <p class="text-sm page-subtitle">GRS AI · Sora 2 / Veo</p>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <button type="button" id="btn-theme" class="theme-btn px-3 py-1.5 rounded-lg text-sm border" aria-label="Тема">🌓</button>
+        <div id="header-auth" class="flex items-center gap-2">
+          <span id="user-name" class="page-subtitle text-sm hidden"></span>
+          <button type="button" id="btn-logout" class="header-btn px-3 py-1.5 rounded-lg text-sm hidden">Выйти</button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <button type="button" id="btn-new-generation" class="header-btn px-4 py-2 rounded-lg text-sm hidden">Новая генерация</button>
+        <button type="button" id="btn-history" class="header-btn px-4 py-2 rounded-lg text-sm hidden">История генераций</button>
+      </div>
+    </header>
+
+    <section id="screen-login" class="card p-6 text-center">
+      <p class="mb-4 input-label">Войдите через Telegram, чтобы генерировать видео и хранить историю в своём аккаунте.</p>
+      <div id="telegram-login-container"></div>
+      <p id="login-no-bot" class="text-amber-500 text-sm mt-4 hidden">Бот для входа не настроен. Укажите GRS_IMAGE_WEB_BOT_USERNAME в .env</p>
+    </section>
+
+    <main id="screen-main" class="hidden space-y-6">
+      <!-- Модель -->
+      <section class="card p-4">
+        <label class="block text-sm uppercase tracking-wide mb-2 input-label">Модель</label>
+        <select id="model-select" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+          <option value="sora-2">Sora 2</option>
+          <option value="veo">Veo</option>
+        </select>
+      </section>
+
+      <!-- Референс (одно изображение) -->
+      <section class="card p-4">
+        <label class="block input-label text-sm uppercase tracking-wide mb-3">Референс (опционально)</label>
+        <div class="flex items-center gap-3 flex-wrap">
+          <div id="video-ref-preview-wrap" class="hidden">
+            <img id="video-ref-preview" alt="" class="max-h-24 rounded object-cover" />
+          </div>
+          <input type="file" id="video-ref-input" accept="image/*" class="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0" />
+          <button type="button" id="video-ref-remove" class="hidden px-3 py-1.5 rounded text-sm btn-secondary" aria-label="Удалить референс">Удалить</button>
+        </div>
+      </section>
+
+      <!-- Промпт -->
+      <section class="card p-4">
+        <label class="block text-sm uppercase tracking-wide mb-2 input-label">Промпт</label>
+        <textarea id="video-prompt-input" rows="4" class="w-full rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent input-area" placeholder="Опишите сцену для видео…"></textarea>
+      </section>
+
+      <!-- Настройки Sora 2 -->
+      <section id="video-options-sora" class="card p-4 space-y-4">
+        <label class="block text-sm uppercase tracking-wide input-label">Настройки Sora 2</label>
+        <div>
+          <span class="block text-sm input-label mb-1">Соотношение сторон</span>
+          <select id="video-aspect-sora" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+            <option value="9:16">9:16 (вертикальный)</option>
+            <option value="16:9">16:9 (горизонтальный)</option>
+          </select>
+        </div>
+        <div>
+          <span class="block text-sm input-label mb-1">Длительность</span>
+          <select id="video-duration" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+            <option value="10">10 с</option>
+            <option value="15">15 с</option>
+          </select>
+        </div>
+        <div>
+          <span class="block text-sm input-label mb-1">Размер</span>
+          <select id="video-size" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+            <option value="Small">Small</option>
+            <option value="Large">Large</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Настройки Veo (только aspect) -->
+      <section id="video-options-veo" class="card p-4 hidden">
+        <label class="block text-sm uppercase tracking-wide input-label mb-2">Настройки Veo</label>
+        <div>
+          <span class="block text-sm input-label mb-1">Соотношение сторон</span>
+          <select id="video-aspect-veo" class="w-full max-w-xs rounded-lg p-2 text-sm input-area focus:ring-2 focus:ring-blue-500">
+            <option value="16:9">16:9 (горизонтальный)</option>
+            <option value="9:16">9:16 (вертикальный)</option>
+          </select>
+        </div>
+      </section>
+
+      <button type="button" id="btn-generate-video" class="w-full py-3 rounded-lg font-medium btn-primary transition-colors">Начать генерацию</button>
+
+      <section id="loading-section" class="card p-6 text-center hidden">
+        <p class="input-label text-sm mb-4">Генерация видео…</p>
+        <div class="loading-gif-fallback text-4xl mb-4" aria-hidden="true">🎬 ✨</div>
+        <p id="loading-status" class="text-sm input-label mt-2"></p>
+      </section>
+
+      <section id="result-section" class="card p-6 hidden">
+        <p class="input-label text-sm mb-3">Результат</p>
+        <div id="result-video-wrap" class="mb-4 rounded-lg overflow-hidden result-preview-bg">
+          <video id="result-video" controls class="max-w-full w-full" playsinline></video>
+        </div>
+        <div class="flex gap-2">
+          <a id="btn-download-video" href="#" download class="flex-1 py-2 rounded-lg text-center font-medium btn-download">Скачать</a>
+          <button type="button" id="btn-retry-video" class="flex-1 py-2 rounded-lg font-medium btn-primary">Сделать заново</button>
+        </div>
+      </section>
+    </main>
+
+    <div id="history-popup" class="popup-overlay hidden" aria-hidden="true">
+      <div class="popup-card">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold page-title">История генераций видео</h2>
+          <button type="button" id="history-close" class="p-2 rounded input-label hover:opacity-80 popup-close-btn" aria-label="Закрыть">✕</button>
+        </div>
+        <div id="history-list" class="history-list overflow-y-auto space-y-3">
+          <p id="history-empty" class="input-label text-sm">Нет сохранённых генераций</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-12 py-6 text-center text-sm footer-text">
+    <p class="flex flex-wrap items-center justify-center sm:justify-between gap-x-4 gap-y-1 max-w-3xl mx-auto px-3">
+      <span>Powered by FLOW. All rights reserved.</span>
+      <a href="/" class="footer-link">Генерация изображений</a>
+    </p>
+    <p class="mt-1"><a href="https://flowcabinet.ru" target="_blank" rel="noopener" class="footer-link">flowcabinet.ru</a></p>
+  </footer>
+
+  <script src="/static/video.js"></script>
+</body>
+</html>
