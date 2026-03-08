@@ -552,7 +552,10 @@ class GRSAIClient:
         except Exception as e:
             logger.exception("get_draw_result failed: %s", e)
             return {"success": False, "error": str(e), "status": "error"}
-        status = result.get("status") or result.get("data", {}).get("status")
+        if result is None or not isinstance(result, dict):
+            return {"success": False, "error": "Empty or invalid API response", "status": "error"}
+        data_obj = result.get("data")
+        status = result.get("status") or (data_obj.get("status") if isinstance(data_obj, dict) else None)
         if status in ("running", "pending", "processing"):
             return {"success": False, "pending": True, "status": status}
         if result.get("code") is not None and result.get("code") != 0:
@@ -620,7 +623,10 @@ class GRSAIClient:
         except Exception as e:
             logger.exception("Sora video request failed: %s", e)
             return {"success": False, "error": str(e)}
-        task_id = result.get("id") or result.get("task_id") or result.get("data", {}).get("id")
+        if result is None or not isinstance(result, dict):
+            return {"success": False, "error": "Empty or invalid API response"}
+        data_obj = result.get("data")
+        task_id = result.get("id") or result.get("task_id") or (data_obj.get("id") if isinstance(data_obj, dict) else None)
         if task_id:
             return {"success": True, "task_id": str(task_id)}
         data = result.get("data")
@@ -662,7 +668,10 @@ class GRSAIClient:
         except Exception as e:
             logger.exception("Veo video request failed: %s", e)
             return {"success": False, "error": str(e)}
-        task_id = result.get("id") or result.get("task_id") or (result.get("data") or {}).get("id")
+        if result is None or not isinstance(result, dict):
+            return {"success": False, "error": "Empty or invalid API response"}
+        data_obj = result.get("data")
+        task_id = result.get("id") or result.get("task_id") or (data_obj.get("id") if isinstance(data_obj, dict) else None)
         if task_id:
             return {"success": True, "task_id": str(task_id)}
         data = result.get("data")

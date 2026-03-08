@@ -430,6 +430,8 @@ def api_generate_video(request: Request, body: GenerateVideoRequest):
     except Exception as e:
         logger.exception("GRS generate_video: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
+    if not result or not isinstance(result, dict):
+        raise HTTPException(status_code=502, detail="Пустой или неверный ответ API")
     if not result.get("success"):
         raise HTTPException(
             status_code=502,
@@ -463,6 +465,8 @@ def api_video_result(request: Request, body: VideoResultRequest):
     except Exception as e:
         logger.exception("get_draw_result: %s", e)
         raise HTTPException(status_code=502, detail=str(e))
+    if not result or not isinstance(result, dict):
+        return {"success": False, "error": "Пустой или неверный ответ API"}
     if result.get("pending"):
         return {"success": False, "pending": True}
     if not result.get("success"):
