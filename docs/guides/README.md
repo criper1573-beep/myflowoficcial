@@ -38,6 +38,7 @@
 | [BLUEPRINT_ARTICLE_GENERATION_PROMPTS.md](BLUEPRINT_ARTICLE_GENERATION_PROMPTS.md) | **Промпты и инструкции по генерации статей для Дзен/блога** (ключи, заголовок, текст, мета-описание, обложка) |
 | [ZEN_ARTICLE_STRUCTURE.md](ZEN_ARTICLE_STRUCTURE.md) | Структура JSON-статьи для Дзен (content_blocks, поля) |
 | [MCP_BROWSER.md](MCP_BROWSER.md) | MCP и браузерные инструменты — зачем и как настроить |
+| [CURSOR_PLUGIN_AI_OFFICE_SETUP.md](CURSOR_PLUGIN_AI_OFFICE_SETUP.md) | 🧠 Подробная настройка Cursor-плагина «AI Office» (директор + субагенты + MCP) |
 | blocks/ai_integrations/README.md | Документация GRS AI Client |
 | blocks/ai_integrations/QUICK_REFERENCE.md | Краткий справочник по AI Client |
 | blocks/projects/README.md | Конфигурация проектов (мультипроектность) |
