@@ -43,7 +43,7 @@
 
 | ID | Название | Площадка | Статус |
 |----|----------|----------|--------|
-| D0 | spambot_newsbot | Telegram (RSS бот) | ready |
+| D0 | spambot_newsbot | Telegram (RSS бот) | **removed** |
 | D0b | **post_flow** | Telegram (посты из Google Таблицы + GRS AI) | **ready** |
 | D1 | autopost_vk | ВКонтакте | planned |
 | D2 | autopost_zen | Яндекс.Дзен | ready |
@@ -63,6 +63,8 @@
 | E4 | config | Конфигурация и секреты | planned |
 | E5 | web_api | Веб-интерфейс / API управления | planned |
 | E6 | **проекты** | Конфигурация по каждому проекту (мультипроектность) | **ready** |
+| E7 | **flowcabinet_visualizer** | Визуализация кабинета в помещении (1 фото → 3 варианта, flowcabinet.ru) | **ready** |
+| E8 | **script_board** | Доска скриптов диалогов (карточки, GRS AI, экспорт PDF). Деплой: script.flowcabinet.ru — [DEPLOY_SCRIPT_BOARD.md](../guides/DEPLOY_SCRIPT_BOARD.md) | **ready** |
 
 ---
 

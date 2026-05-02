@@ -6,7 +6,7 @@ Backup Manager - система управления бекапами блоко
     python docs/scripts/scripts/backup_manager.py create blocks/ai_integrations/grs_ai_client.py "Working version"
     
     # Создать бекап всего блока (все файлы в папке)
-    python docs/scripts/scripts/backup_manager.py create-block blocks/spambot "Spambot block backup"
+    python docs/scripts/scripts/backup_manager.py create-block blocks/post_flow "Post flow block backup"
     
     # Список бекапов
     python docs/scripts/scripts/backup_manager.py list
@@ -164,9 +164,9 @@ class BackupManager:
         Создание бекапов всех файлов в блоке (директории).
         
         Args:
-            block_path: Путь к блоку (например blocks/spambot)
+            block_path: Путь к блоку (например blocks/post_flow)
             description: Описание бекапа (добавится к каждому файлу)
-            tags: Теги (например ["spambot", "block"])
+            tags: Теги (например ["post_flow", "block"])
         
         Returns:
             Список созданных бекапов

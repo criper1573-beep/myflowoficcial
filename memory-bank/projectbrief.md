@@ -6,16 +6,15 @@
 
 ## Структура проекта
 
-- **blocks/** — код блоков: AI (GRS), Spambot (RSS → Telegram), Post FLOW, проекты и др.
+- **blocks/** — код блоков: AI (GRS), Post FLOW, автопостинг, проекты и др.
 - **docs/** — документация, конфигурация, скрипты, гайды, правила, ключи.
 - **memory-bank/** — контекст и задачи для Cursor Memory Bank (этот workflow).
 
-В корне только README.md, .gitignore и папки. Новый код и скрипты — в blocks/ или docs/.
+В корне только README.md, .gitignore и папки. Новый код и скрипты — в blocks/ или docs/. Исключение: **estimate_materials/** — веб-сервис «Смета — материалы» (расчёт материалов по смете, корзина, Петрович, Excel); см. docs/architecture/ESTIMATE_MATERIALS_SERVICE.md и memory-bank/tasks.md (задача estimate-materials-service).
 
 ## Ключевые блоки
 
 - **blocks/ai_integrations/** — клиент GRS AI (общий для всех проектов).
-- **blocks/spambot/** — NewsBot: RSS → Telegram.
 - **blocks/post_flow/** — Post FLOW: тема из Google Таблицы → GRS AI → канал FLOW.
 - **blocks/projects/** — конфигурация по каждому проекту (мультипроектность).
 - **blocks/mcp_server/** — MCP content-factory (Zen, GRS chat/image).

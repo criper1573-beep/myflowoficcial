@@ -87,7 +87,7 @@ API_KEY = "hardcoded_key"
 
 | Что | Формат | Пример |
 |-----|--------|--------|
-| blocks | Latin | `ai_integrations`, `spambot` |
+| blocks | Latin | `ai_integrations`, `autopost_zen` |
 | Классы | `PascalCase` | `NewsBot` |
 | Функции | `snake_case` | `send_post` |
 | Константы | `UPPER_SNAKE_CASE` | `MAX_RETRIES` |
@@ -204,9 +204,9 @@ def process_data(
 python scripts/backup_manager.py create blocks/path/file.py "Описание" --tags stable,v1.0
 ```
 
-### Запустить бота (Windows)
+### Запуск Post FLOW (Windows)
 ```bash
-scripts\run_newsbot.bat
+python -m blocks.post_flow.bot
 ```
 
 ### Проверить правила

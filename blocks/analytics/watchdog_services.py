@@ -2,6 +2,7 @@
 """
 Watchdog: проверка systemd-сервисов раз в CHECK_INTERVAL сек.
 Если сервис не active — отправка уведомления в Telegram и попытка перезапуска.
+Юниты в состоянии masked (намеренно выключены) пропускаются.
 
 Quickpack: если задан QUICKPACK_URL, проверяется по HTTP (200 = работает).
 Перезапуск через systemd для quickpack не выполняется при проверке по URL.
@@ -39,7 +40,6 @@ SERVICES = [
     ("analytics-telegram-bot", "Telegram-бот дашборда"),
     ("grs-image-web", "Генерация картинок и ссылок"),
     ("orchestrator-kz", "Оркестратор контент завода"),
-    ("spambot", "Спамбот (NewsBot)"),
     ("quickpack", "Quickpack"),
 ]
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -55,6 +55,20 @@ def is_active(unit: str) -> bool:
             timeout=5,
         )
         return out.stdout.strip() == "active"
+    except Exception:
+        return False
+
+
+def is_masked(unit: str) -> bool:
+    """Замаскированный юнит намеренно выключен — не алертить и не пытаться restart (см. stop_*_on_server.ps1)."""
+    try:
+        out = subprocess.run(
+            ["systemctl", "is-enabled", unit],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return out.stdout.strip() == "masked"
     except Exception:
         return False
 
@@ -123,6 +137,8 @@ def main():
         manually_stopped = load_manual_stopped_services()
         for unit, label in SERVICES:
             if unit in manually_stopped:
+                continue
+            if is_masked(unit):
                 continue
             # Quickpack: при заданном QUICKPACK_URL проверяем по HTTP, перезапуск не делаем
             if unit == "quickpack":

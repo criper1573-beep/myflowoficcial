@@ -43,77 +43,17 @@ if errorlevel 1 (
 )
 ```
 
-#### Пример для NewsBot:
-
-**Файл:** `scripts/run_newsbot.bat`
+#### Пример для Post FLOW:
 
 ```bat
 @echo off
 chcp 65001 > nul
-echo ========================================
-echo Запуск NewsBot - RSS бот для Telegram
-echo ========================================
-echo.
-
-REM Проверка переменных окружения
-if not defined TELEGRAM_BOT_TOKEN (
-    echo ОШИБКА: Переменная TELEGRAM_BOT_TOKEN не установлена!
-    echo Установите её в .env файле
-    pause
-    exit /b 1
-)
-
-if not defined TELEGRAM_CHANNEL_ID (
-    echo ОШИБКА: Переменная TELEGRAM_CHANNEL_ID не установлена!
-    echo Установите её в .env файле
-    pause
-    exit /b 1
-)
-
-REM Активация виртуального окружения
-if exist venv\Scripts\activate.bat (
-    call venv\Scripts\activate.bat
-)
-
-REM Запуск бота
-echo Запуск бота...
-echo.
-python -m blocks.spambot
-
-REM Пауза при ошибке
-if errorlevel 1 (
-    echo.
-    echo Ошибка при запуске бота!
-    pause
-)
+if exist venv\Scripts\activate.bat call venv\Scripts\activate.bat
+python -m blocks.post_flow.bot
+if errorlevel 1 pause
 ```
 
-#### Почему это важно:
-
-- ✅ **Удобство:** Двойной клик для запуска бота
-- ✅ **Кроссплатформенность:** Windows пользователи могут запускать без знания командной строки
-- ✅ **Проверки:** BAT-файл может проверять переменные окружения
-- ✅ **Логирование:** Можно добавить перенаправление вывода в лог-файл
-- ✅ **Автозапуск:** Легко добавить в планировщик задач Windows
-
-#### Дополнительные возможности:
-
-```bat
-REM Перенаправление вывода в лог
-python -m blocks.spambot >> logs\newsbot.log 2>&1
-
-REM Автоперезапуск при падении
-:restart
-python -m blocks.spambot
-if errorlevel 1 (
-    echo Бот упал. Перезапуск через 10 секунд...
-    timeout /t 10
-    goto restart
-)
-
-REM Загрузка переменных из .env (если используется dotenv)
-for /f "tokens=*" %%a in (.env) do set %%a
-```
+Блок NewsBot (RSS) `blocks.spambot` из репозитория удалён.
 
 ---
 
@@ -135,7 +75,7 @@ blocks/
 
 #### Требования:
 
-- ✅ **Названия папок блоков — только латиница.** Например: `spambot`, `ai_integrations`, `content_titles`. Кириллица в путях не допускается (проблемы с CMD/скриптами).
+- ✅ **Названия папок блоков — только латиница.** Например: `post_flow`, `ai_integrations`, `autopost_zen`. Кириллица в путях не допускается (проблемы с CMD/скриптами).
 - ✅ `__init__.py` должен экспортировать основные классы
 - ✅ `README.md` должен содержать полную документацию
 - ✅ Основной файл должен быть назван по имени блока
@@ -300,20 +240,9 @@ SERVICE_API_URL=https://api.service.com
 #### Пример:
 
 ```python
-# scripts/test_newsbot.py
-from blocks.spambot import NewsBot
-
+# scripts/test_example_block.py
 def test_basic():
-    """Тест базовой инициализации"""
-    bot = NewsBot(
-        bot_token="test_token",
-        channel_id="@test_channel"
-    )
-    assert bot is not None
-    print("✓ Базовая инициализация работает")
-
-if __name__ == "__main__":
-    test_basic()
+    assert True
 ```
 
 ---
@@ -324,9 +253,9 @@ if __name__ == "__main__":
 
 #### Файлы и директории:
 
-- **blocks:** названия папок латиницей (например, `ai_integrations`, `spambot`)
-- **Python файлы:** `snake_case` (например, `grs_ai_client.py`, `newsbot.py`)
-- **Классы:** `PascalCase` (например, `NewsBot`, `GRSAIClient`)
+- **blocks:** названия папок латиницей (например, `ai_integrations`, `autopost_zen`)
+- **Python файлы:** `snake_case` (например, `grs_ai_client.py`, `scheduler.py`)
+- **Классы:** `PascalCase` (например, `GRSAIClient`)
 - **Функции/методы:** `snake_case` (например, `send_post`, `fetch_feed`)
 - **Константы:** `UPPER_SNAKE_CASE` (например, `MAX_RETRIES`, `API_URL`)
 

@@ -14,5 +14,5 @@ RUN pip install --no-cache-dir -r docs/config/requirements-docker.txt
 COPY blocks/ blocks/
 COPY docs/ docs/
 
-# По умолчанию — Spambot для проекта flowcabinet (переопределяется в docker run / compose)
-CMD ["python", "-m", "blocks.spambot", "--project", "flowcabinet"]
+# По умолчанию — Post FLOW (переопределяется в docker run / compose)
+CMD ["python", "-m", "blocks.post_flow.bot"]

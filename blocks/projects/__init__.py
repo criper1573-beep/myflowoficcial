@@ -10,7 +10,6 @@ from blocks.projects.loader import (
     list_projects,
     load_project_config,
     get_telegram_config,
-    get_spambot_overrides,
     get_project_name,
 )
 
@@ -18,6 +17,5 @@ __all__ = [
     "list_projects",
     "load_project_config",
     "get_telegram_config",
-    "get_spambot_overrides",
     "get_project_name",
 ]

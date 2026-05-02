@@ -8,7 +8,7 @@ Reads YAML files from data/ and returns config by project_id.
 
 import os
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 try:
     import yaml
@@ -52,7 +52,7 @@ def load_project_config(project_id: str) -> Dict[str, Any]:
         project_id: Идентификатор проекта (имя файла без расширения).
         
     Returns:
-        Словарь конфигурации (содержимое YAML). Верхний уровень: project_id, name, telegram, spambot, ...
+        Словарь конфигурации (содержимое YAML). Верхний уровень: project_id, name, telegram, ...
         
     Raises:
         FileNotFoundError: Если файл проекта не найден.
@@ -87,32 +87,6 @@ def get_telegram_config(project_id: str) -> Dict[str, str]:
     bot_token = telegram.get("bot_token") or os.getenv("TELEGRAM_BOT_TOKEN")
     channel_id = telegram.get("channel_id") or os.getenv("TELEGRAM_CHANNEL_ID")
     return {"bot_token": bot_token or "", "channel_id": channel_id or ""}
-
-
-def get_spambot_overrides(project_id: str) -> Dict[str, Any]:
-    """
-    Получить переопределения для NewsBot из конфига проекта.
-    
-    Возвращает только те ключи, которые есть в конфиге проекта (spambot.*).
-    Подходит для передачи в NewsBotConfig после bot_token и channel_id.
-    
-    Returns:
-        Словарь полей для NewsBotConfig: cta_text, cta_link, hashtag_options, priority_words, rss_feeds, ...
-    """
-    config = load_project_config(project_id)
-    spambot = config.get("spambot")
-    if not spambot or not isinstance(spambot, dict):
-        return {}
-    
-    # Allowed NewsBotConfig fields (see blocks.spambot.newsbot.NewsBotConfig)
-    allowed = {
-        "cta_text", "cta_link", "hashtag_options", "hashtags_per_post",
-        "priority_words", "rss_feeds", "rss_feeds_fallback",
-        "send_interval", "max_caption_length", "repost_after_seconds",
-        "last_posted_max", "history_file", "max_post_age_seconds", "sleep_when_no_post",
-        "max_retries", "retry_base_delay", "user_agent",
-    }
-    return {k: v for k, v in spambot.items() if k in allowed}
 
 
 def get_project_name(project_id: str) -> str:

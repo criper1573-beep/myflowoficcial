@@ -88,42 +88,13 @@ python scripts/backup_manager.py delete backup_0001
 
 ---
 
-## 🤖 NewsBot (Spambot)
+## Post FLOW
 
-### Запуск бота
 ```bash
-# Windows (самый простой способ)
-START_SPAMBOT.bat
-
-# Или через scripts
-scripts\run_spambot.bat
-scripts\run_newsbot.bat
-
-# Или через Python
-python -m blocks.spambot
+python -m blocks.post_flow.bot
 ```
 
-### Использование в коде
-```python
-from blocks.спамбот import NewsBot
-
-bot = NewsBot()
-bot.start()
-```
-
-### С конфигурацией
-```python
-from blocks.спамбот.newsbot import NewsBotConfig
-
-config = NewsBotConfig(
-    bot_token="token",
-    channel_id="@channel",
-    send_interval=180,
-    hashtags_per_post=5
-)
-bot = NewsBot(config=config)
-bot.start()
-```
+См. **blocks/post_flow/** и **README.md**.
 
 ---
 

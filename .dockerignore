@@ -23,7 +23,6 @@ __pycache__/
 # Хранилище и логи
 storage/
 *.log
-blocks/spambot/newsbot_posted.json
 blocks/grs_image_web/users.json
 
 # Бекапы

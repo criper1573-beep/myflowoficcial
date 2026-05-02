@@ -61,8 +61,8 @@ ContentItem:
 Один ContentZavod обслуживает **несколько проектов** (бизнесов). У каждого проекта свои аккаунты в соцсетях и настройки ботов; **API ИИ общий** и задаётся в `.env`.
 
 - **Блок «Проекты»** (`blocks/projects/`) хранит конфигурацию по каждому проекту в YAML (`data/<project_id>.yaml`).
-- При запуске бота указывается проект: `start.bat flowcabinet` или `python -m blocks.spambot --project flowcabinet`. Подставляются токены и настройки из конфига проекта.
-- Общее (в `.env`): `GRS_AI_API_KEY`, `PROJECT_ID` (проект по умолчанию). Проектное (в YAML): Telegram, VK, Дзен, CTA, хештеги, RSS и т.д.
+- Блоки, которым нужен проект, получают его из `--project` или из `PROJECT_ID` в `.env`; токены читаются из YAML или `.env`.
+- Общее (в `.env`): `GRS_AI_API_KEY`, `PROJECT_ID` (по умолчанию). Проектное (в YAML): Telegram, VK, Дзен и т.д.
 
 Подробнее: **docs/guides/MULTIPROJECT.md**.
 

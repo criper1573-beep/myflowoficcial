@@ -23,7 +23,6 @@ blocks/projects/
 
 1. Скопируйте `data/project.example.yaml` в `data/<project_id>.yaml`.
 2. Заполните `project_id`, `name`, `telegram.bot_token`, `telegram.channel_id`.
-3. При необходимости укажите переопределения для спамбота в секции `spambot`.
 
 Пример минимального конфига:
 
@@ -36,35 +35,7 @@ telegram:
   channel_id: "@mychannel"
 ```
 
----
-
-## Запуск бота для проекта
-
-**Из папки блока (рекомендуется):**
-```bat
-blocks\spambot\start.bat flowcabinet
-```
-
-**Через полный скрипт:**
-```bat
-docs\scripts\scripts\run_spambot.bat flowcabinet
-```
-
-**Через Python:**
-```bash
-python -m blocks.spambot --project flowcabinet
-```
-
-**Проект по умолчанию:** задайте в `.env`:
-```env
-PROJECT_ID=flowcabinet
-```
-Тогда можно запускать без аргумента: `blocks\spambot\start.bat` или `python -m blocks.spambot`.
-
-**Список проектов:**
-```bash
-python -m blocks.spambot --list-projects
-```
+Устаревшая секция `spambot` в YAML (если осталась от старых конфигов) игнорируется кодом.
 
 ---
 
@@ -76,14 +47,8 @@ python -m blocks.spambot --list-projects
 | `name` | нет | Название для отображения |
 | `telegram.bot_token` | да* | Токен бота Telegram |
 | `telegram.channel_id` | да* | ID канала (@channel или -100...) |
-| `spambot.cta_text` | нет | Текст CTA для поста |
-| `spambot.cta_link` | нет | Ссылка CTA |
-| `spambot.hashtag_options` | нет | Список хештегов |
-| `spambot.priority_words` | нет | Ключевые слова для фильтрации RSS |
-| `spambot.rss_feeds` | нет | Основные RSS-ленты |
-| `spambot.rss_feeds_fallback` | нет | Запасные RSS-ленты |
 
-\* Для спамбота обязательны `telegram.bot_token` и `telegram.channel_id` (в файле проекта или в .env).
+\* Для блоков, которым нужен Telegram, задайте в файле проекта или в `.env`.
 
 ---
 
@@ -94,22 +59,12 @@ from blocks.projects import (
     list_projects,
     load_project_config,
     get_telegram_config,
-    get_spambot_overrides,
     get_project_name,
 )
 
-# Список проектов
-ids = list_projects()  # ['flowcabinet', ...]
-
-# Конфиг целиком
+ids = list_projects()
 config = load_project_config("flowcabinet")
-
-# Только Telegram (для спамбота)
-tg = get_telegram_config("flowcabinet")  # {'bot_token': '...', 'channel_id': '@...'}
-
-# Переопределения для NewsBotConfig
-overrides = get_spambot_overrides("flowcabinet")
-# Передать в NewsBot: NewsBot(config=NewsBotConfig(bot_token=..., channel_id=..., **overrides))
+tg = get_telegram_config("flowcabinet")
 ```
 
 ---
@@ -119,6 +74,6 @@ overrides = get_spambot_overrides("flowcabinet")
 | Где | Что |
 |-----|-----|
 | **.env** | GRS_AI_API_KEY, GRS_AI_API_URL, PROJECT_ID, опционально TELEGRAM_* |
-| **blocks/projects/data/<id>.yaml** | telegram, spambot, в будущем vk, zen и т.д. |
+| **blocks/projects/data/<id>.yaml** | telegram, в будущем vk, zen и т.д. |
 
-API ИИ один на весь завод; аккаунты соцсетей и настройки ботов — по проектам.
+API ИИ один на весь завод; аккаунты соцсетей — по проектам.

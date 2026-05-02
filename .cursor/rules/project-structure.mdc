@@ -9,7 +9,7 @@ alwaysApply: true
 
 **В корне проекта не создаём никакие новые файлы.** Только в соответствующих папках:
 
-- **Код и логика блока** → `blocks/<имя_блока>/` (например `blocks/spambot/`, `blocks/post_flow/`)
+- **Код и логика блока** → `blocks/<имя_блока>/` (например `blocks/post_flow/`, `blocks/autopost_zen/`)
 - **Документация, конфиг, скрипты** → `docs/` и подпапки:
   - `docs/architecture/` — архитектура, реестр блоков
   - `docs/config/` — .env.example, requirements.txt, примеры конфигов
@@ -24,7 +24,7 @@ alwaysApply: true
 - `memory-bank/` — контекст и задачи Cursor Memory Bank (команды /van, /plan, /build и др.); создаётся и обновляется workflow, не дублировать в docs/
 - `Dockerfile`, `.dockerignore`, `docker-compose.yml` — инфраструктура Docker (стандартное размещение в корне)
 
-Точка входа NewsBot — внутри блока: `python -m blocks.spambot` (или `blocks\spambot\start.bat`). В корне лаунчеров не создавать.
+Точка входа типового блока задаётся в README блока или в **docs/guides/DOCKER.md** (например `python -m blocks.post_flow.bot`). В корне лаунчеров не создавать.
 
 Одноразовые/миграционные скрипты в корне не создавать: размещать в `docs/scripts/` (например `docs/scripts/migrate_to_latin.py`).
 

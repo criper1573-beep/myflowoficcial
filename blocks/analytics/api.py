@@ -229,7 +229,6 @@ SERVER_SERVICES = [
     ("grs-image-web-staging", "Генерация картинок (staging)", "Стейжинг flowimage для ветки dev"),
     ("orchestrator-kz", "Оркестратор контент завода", "Оркестратор: генерация и публикация (Дзен, Telegram) только по расписанию"),
     ("script-board", "Script Board", "Доска скриптов диалогов (script.flowcabinet.ru)"),
-    ("spambot", "Спамбот (NewsBot)", "Публикации в каналы: Дзен, соцсети и др."),
     ("contentzavod-watchdog", "Watchdog", "Следит за сервисами и сообщает при сбоях"),
     ("zakazy-forwarder", "Zakazy Forwarder", "Пересылка заказов из каналов в обработку"),
     ("quickpack", "Quickpack", "Сайт Quickpack на сервере"),

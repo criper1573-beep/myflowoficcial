@@ -6,7 +6,7 @@
 
 ## Нужно ли что-то менять на сервере?
 
-**Нет.** Текущий деплой на VPS (Beget и др.) работает как раньше: `git pull`, `pip install -r docs/config/requirements.txt`, systemd запускает `python -m blocks.spambot` и другие сервисы. Docker — **альтернативный** способ запуска (локально или на любой машине с Docker), а не замена существующему сценарию.
+**Нет.** Текущий деплой на VPS (Beget и др.) работает как раньше: `git pull`, `pip install -r docs/config/requirements.txt`, systemd запускает оркестратор, вебхуки, дашборды и другие сервисы. Docker — **альтернативный** способ запуска (локально или на любой машине с Docker), а не замена существующему сценарию.
 
 **Если захочешь запускать приложение в Docker на сервере** — тогда на VPS нужно: установить Docker (и при необходимости Docker Compose), в каталоге проекта выполнить `docker build -t contentzavod .`, создать/скопировать `.env` и запускать контейнеры вместо или вместе с systemd. Такой сценарий можно оформить отдельно (например, в docs/scripts/deploy_beget/ или в этом гайде).
 
@@ -93,23 +93,19 @@ docker build -t contentzavod .
 `cd путь\к\КонтентЗавод`, затем `docker run ... --env-file .env ...`.  
 Рабочая директория в контейнере — `/app`, поэтому `python -m blocks.*` работает без доп. настроек.
 
-### Spambot (NewsBot)
-
-```bash
-docker run --rm -it --env-file .env contentzavod python -m blocks.spambot --project flowcabinet
-```
-
-Список проектов:
-
-```bash
-docker run --rm -it --env-file .env contentzavod python -m blocks.spambot --list-projects
-```
-
-### Post FLOW
+### Post FLOW (пример по умолчанию в образе)
 
 ```bash
 docker run --rm -it --env-file .env contentzavod python -m blocks.post_flow.bot
 ```
+
+### Другие блоки (переопределение команды)
+
+```bash
+docker run --rm -it --env-file .env contentzavod python -m blocks.mcp_server
+```
+
+Устаревший блок NewsBot (RSS) `blocks.spambot` удалён из репозитория.
 
 ### MCP-сервер
 
@@ -126,7 +122,7 @@ docker run --rm -it --env-file .env -p 8765:8765 contentzavod python -m blocks.m
 ```bash
 docker run --rm -it --env-file .env \
   -v "$(pwd)/blocks/projects/data:/app/blocks/projects/data:ro" \
-  contentzavod python -m blocks.spambot --project flowcabinet
+  contentzavod python -m blocks.post_flow.bot
 ```
 
 **Windows (PowerShell):**
@@ -134,20 +130,18 @@ docker run --rm -it --env-file .env \
 ```powershell
 docker run --rm -it --env-file .env `
   -v "${PWD}/blocks/projects/data:/app/blocks/projects/data:ro" `
-  contentzavod python -m blocks.spambot --project flowcabinet
+  contentzavod python -m blocks.post_flow.bot
 ```
 
 ---
 
 ## Docker Compose
 
-В корне проекта есть `docker-compose.yml` с примерами сервисов **spambot** и **post_flow**. Используется общий образ, у каждого сервиса свой `command`.
+В корне проекта есть `docker-compose.yml` с примером сервиса **post_flow**. Используется общий образ; команда задаётся в `command`.
 
 Запуск:
 
 ```bash
-docker compose up -d spambot
-# или
 docker compose up -d post_flow
 ```
 

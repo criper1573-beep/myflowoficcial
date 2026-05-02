@@ -28,8 +28,8 @@ storage/*.db
 storage/orchestrator_kz_state.json
 storage/orchestrator_kz_paused
 *.log
-blocks/spambot/newsbot_posted.json
 blocks/grs_image_web/users.json
+blocks/script_board/storage/projects.json
 
 # Бекапы (локальные, не коммитятся)
 backups/backup_*/

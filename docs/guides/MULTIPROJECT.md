@@ -7,9 +7,9 @@
 ## Идея
 
 - **Один код** — один ContentZavod, обновления и правки в одном месте.
-- **Несколько проектов** — каждый проект = свой бизнес, свои Telegram/VK/Дзен, свои CTA, хештеги, RSS.
+- **Несколько проектов** — каждый проект = свой бизнес, свои Telegram/VK/Дзен и т.д.
 - **Общий AI** — ключ GRS AI (и др.) в `.env`, один на все проекты.
-- **Выбор проекта при запуске** — `start.bat flowcabinet` или `python -m blocks.spambot --project flowcabinet`.
+- **Выбор проекта** — в блоках через аргумент `--project <id>` или переменную `PROJECT_ID` в `.env`.
 
 ---
 
@@ -17,8 +17,10 @@
 
 | Где | Что хранится |
 |-----|----------------|
-| **.env** (корень) | GRS_AI_API_KEY, GRS_AI_API_URL, PROJECT_ID (проект по умолчанию). Опционально TELEGRAM_* для запуска без проектов. |
-| **blocks/projects/data/<id>.yaml** | telegram (bot_token, channel_id), spambot (CTA, хештеги, RSS), в будущем vk, zen и т.д. |
+| **.env** (корень) | GRS_AI_API_KEY, GRS_AI_API_URL, PROJECT_ID (по умолчанию). Опционально TELEGRAM_* и др. |
+| **blocks/projects/data/<id>.yaml** | telegram (bot_token, channel_id), в будущем vk, zen и т.д. |
+
+Секция `spambot` в старых YAML больше не используется кодом и может быть удалена из файлов.
 
 ---
 
@@ -28,64 +30,9 @@
    ```text
    copy blocks\projects\data\project.example.yaml blocks\projects\data\my_project.yaml
    ```
-2. Откройте `blocks/projects/data/мой_проект.yaml` и заполните:
-   - `project_id`, `name`
-   - `telegram.bot_token`, `telegram.channel_id`
-   - при необходимости — секцию `spambot` (cta_text, cta_link, hashtag_options, priority_words, rss_feeds).
-3. Запуск:
-   ```bat
-   blocks\spambot\start.bat мой_проект
-   ```
+2. Откройте `blocks/projects/data/мой_проект.yaml` и заполните `project_id`, `name`, `telegram`.
 
----
-
-## Запуск бота по проекту
-
-**С указанием проекта (рекомендуется):**
-```bat
-blocks\spambot\start.bat flowcabinet
-docs\scripts\scripts\run_spambot.bat flowcabinet
-```
-```bash
-python docs/scripts/scripts/python -m blocks.spambot --project flowcabinet
-```
-
-**Проект по умолчанию:** в `.env` задайте `PROJECT_ID=flowcabinet`. Тогда можно вызывать без аргумента:
-```bat
-blocks\spambot\start.bat
-```
-
-**Список проектов:**
-```bash
-python -m blocks.spambot --list-projects
-```
-
-**Без проектов (как раньше):** токены только из `.env`:
-```bash
-python -m blocks.spambot --no-project
-```
-В `.env` должны быть заданы `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHANNEL_ID`.
-
----
-
-## Пример конфига проекта (YAML)
-
-```yaml
-project_id: flowcabinet
-name: Flow Cabinet
-
-telegram:
-  bot_token: "your_bot_token"
-  channel_id: "@your_channel"
-
-spambot:
-  cta_text: "\n\nПланируешь ремонт в офисе?...\n"
-  cta_link: "https://flowcabinet.ru"
-  hashtag_options: ["#ремонт", "#офис", ...]
-  priority_words: ["ремонт", "офис", "интерьер"]
-```
-
-Полный пример и все поля — в **blocks/projects/data/project.example.yaml** и **blocks/projects/README.md**.
+Полный пример и поля — в **blocks/projects/data/project.example.yaml** и **blocks/projects/README.md**.
 
 ---
 
@@ -96,43 +43,31 @@ from blocks.projects import (
     list_projects,
     load_project_config,
     get_telegram_config,
-    get_spambot_overrides,
     get_project_name,
 )
 
-# Список проектов
-list_projects()  # ['flowcabinet', ...]
-
-# Конфиг проекта
+list_projects()
 config = load_project_config("flowcabinet")
-
-# Только Telegram (для спамбота)
 tg = get_telegram_config("flowcabinet")
-
-# Переопределения для NewsBotConfig
-overrides = get_spambot_overrides("flowcabinet")
 ```
 
 ---
 
 ## Безопасность
 
-- Файлы проектов в `blocks/projects/data/*.yaml` могут содержать токены. Добавьте в `.gitignore` при необходимости, например:
+- Файлы проектов в `blocks/projects/data/*.yaml` могут содержать токены. При необходимости добавьте в `.gitignore`:
   ```gitignore
   blocks/projects/data/*.yaml
   !blocks/projects/data/project.example.yaml
   ```
-- Альтернатива: в YAML указывать только `project_id` и `name`, а токены подставлять из переменных окружения (например `TELEGRAM_BOT_TOKEN_flowcabinet`) — при желании можно расширить загрузчик.
 
 ---
 
 ## Кратко
 
-| Действие | Команда |
-|----------|--------|
-| Запуск для проекта | `blocks\spambot\start.bat flowcabinet` |
-| Список проектов | `python ... python -m blocks.spambot --list-projects` |
+| Действие | Как |
+|----------|-----|
 | Проект по умолчанию | В `.env`: `PROJECT_ID=flowcabinet` |
 | Добавить проект | Новый файл в `blocks/projects/data/<id>.yaml` |
 
-Подробнее по блоку: **blocks/projects/README.md**.
+Подробнее: **blocks/projects/README.md**.

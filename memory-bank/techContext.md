@@ -12,8 +12,7 @@
 
 ## Ключевые технологии
 
-- **Telegram:** боты через API (Spambot, Post FLOW).
-- **RSS:** парсинг и доставка в Telegram (Spambot).
+- **Telegram:** боты через API (Post FLOW, оркестратор, уведомления).
 - **Google Sheets/Таблицы:** источник тем для постов (Post FLOW).
 - **GRS AI:** API для генерации текста и изображений.
 - **Дзен:** публикация статей (в т.ч. через MCP, Playwright при необходимости).
@@ -27,6 +26,4 @@
 
 ## Точки входа
 
-- Spambot: `python -m blocks.spambot` или `blocks\spambot\start.bat [project_id]`
-- Список проектов: `python -m blocks.spambot --list-projects`
-- Остальные блоки — по документации в docs/guides/ и blocks/<block>/.
+- Примеры: `python -m blocks.post_flow.bot`, оркестратор и др. — **docs/guides/** и **blocks/<block>/**.
