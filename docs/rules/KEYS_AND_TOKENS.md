@@ -433,20 +433,31 @@ ESTIMATE_MATERIALS_DATABASE=путь/к/estimate_materials/data/estimate_materia
 
 **Назначение:** Удалённый доступ к серверу для деплоя, перезапуска сервисов и мониторинга
 
+**Сервер Латвии (активный VPS):**
 ```env
-SERVER_HOST=85.198.66.62
-SERVER_USER=root
-SERVER_SSH_PASSWORD=your_ssh_password_here
+SERVER_LV_HOST=194.113.209.152
+SERVER_LV_USER=root
+SERVER_LV_SSH_PASSWORD=your_latvia_ssh_password_here
+```
+
+Для скриптов деплоя активный хост задаётся через `SERVER_HOST` / `DEPLOY_SSH_PASSWORD` (подставить значения Латвии).
+
+**Сервер РФ (предыдущий, проект `/root/contentzavod`):**
+```env
+SERVER_RF_HOST=85.198.66.62
+SERVER_RF_USER=root
+SERVER_RF_SSH_PASSWORD=your_rf_ssh_password_here
 ```
 
 Реальные значения хранить только в `.env` (не коммитить). Для plink/pscp при деплое использовать тот же пароль в переменной сеанса `DEPLOY_SSH_PASSWORD`.
 
-**Для скрипта загрузки архива на сервер** (Windows, `docs/scripts/deploy_beget/make_zip_and_upload.ps1`) задай в том же сеансе:
-- `DEPLOY_SSH_PASSWORD` — тот же пароль SSH (скрипт передаёт его в pscp). Не коммитить, не хранить в репозитории.
+**Подключение с Mac/Linux:**
+- `ssh root@194.113.209.152` — Латвия
+- `ssh root@85.198.66.62` — РФ
+- Настройка ключа и `~/.ssh/config` с нового Mac: `bash docs/scripts/deploy_beget/setup_ssh_latvia_mac.sh`, затем `ssh contentzavod-lv`
 
-**Подключение:**
-- Через PuTTY/plink: `plink -ssh root@85.198.66.62 -pw "PASSWORD" "command"`
-- Через OpenSSH: `ssh root@85.198.66.62`
+**Подключение с Windows:**
+- PuTTY/plink: `plink -ssh root@194.113.209.152 -pw "PASSWORD" "command"` (Латвия) или `plink -ssh root@85.198.66.62 -pw "PASSWORD" "command"` (РФ)
 
 **Используется для:**
 - Деплоя, `docs/scripts/deploy_beget/*.ps1`, диагностики по SSH

@@ -10,6 +10,7 @@ env/
 
 # Конфигурация и секреты
 .env
+.ssh/
 docs/scripts/deploy_beget/grs-image-web.service
 .env.local
 config/*.local.yaml
