@@ -431,22 +431,29 @@ ESTIMATE_MATERIALS_DATABASE=путь/к/estimate_materials/data/estimate_materia
 
 ### 10. SSH-доступ к серверу (VPS)
 
+**Инструкция по подключению (Mac/Windows):** `docs/guides/BEGET_SSH_CONNECT.md`
+
 **Назначение:** Удалённый доступ к серверу для деплоя, перезапуска сервисов и мониторинга
 
+**Сервер Латвии (kit20.ru и др.):**
 ```env
-SERVER_HOST=85.198.66.62
-SERVER_USER=root
-SERVER_SSH_PASSWORD=your_ssh_password_here
+SERVER_LV_HOST=194.113.209.152
+SERVER_LV_USER=root
+SERVER_LV_SSH_PASSWORD=your_latvia_ssh_password_here
 ```
 
-Реальные значения хранить только в `.env` (не коммитить). Для plink/pscp при деплое использовать тот же пароль в переменной сеанса `DEPLOY_SSH_PASSWORD`.
+**Сервер РФ (КонтентЗавод, `/root/contentzavod`):**
+```env
+SERVER_RF_HOST=85.198.66.62
+SERVER_RF_USER=root
+SERVER_RF_SSH_PASSWORD=your_rf_ssh_password_here
+```
 
-**Для скрипта загрузки архива на сервер** (Windows, `docs/scripts/deploy_beget/make_zip_and_upload.ps1`) задай в том же сеансе:
-- `DEPLOY_SSH_PASSWORD` — тот же пароль SSH (скрипт передаёт его в pscp). Не коммитить, не хранить в репозитории.
+Реальные значения хранить только в `.env` (не коммитить). Для plink/pscp: `DEPLOY_SSH_PASSWORD`.
 
 **Подключение:**
-- Через PuTTY/plink: `plink -ssh root@85.198.66.62 -pw "PASSWORD" "command"`
-- Через OpenSSH: `ssh root@85.198.66.62`
+- Латвия: `ssh root@194.113.209.152` или алиас `ssh beget-lv` (см. BEGET_SSH_CONNECT.md)
+- РФ: `ssh root@85.198.66.62` или `ssh beget-rf`
 
 **Используется для:**
 - Деплоя, `docs/scripts/deploy_beget/*.ps1`, диагностики по SSH
