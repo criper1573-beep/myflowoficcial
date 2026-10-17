@@ -54,29 +54,27 @@ export function computeLayoutPositions(
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   const widthCache = new Map<string, number>();
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
   const roots = nodes.filter((n) => getParents(n.id, edges).length === 0);
   const sortedRoots = [...roots].sort((a, b) => a.id.localeCompare(b.id));
 
-  function placeNode(
-    nodeId: string,
-    left: number,
-    depth: number,
-  ): void {
+  function placeNode(nodeId: string, left: number, y: number): void {
     const w = subtreeWidth(nodeId, edges, widthCache);
     const x = left + w / 2 - CARD_LAYOUT.width / 2;
-    const y = depth * (CARD_LAYOUT.vGap + CARD_LAYOUT.height);
     positions.set(nodeId, { x, y });
 
     const children = getChildren(nodeId, edges);
     if (children.length === 0) return;
 
+    const node = nodeById.get(nodeId);
+    const childY = y + (node?.measured?.height ?? CARD_LAYOUT.height) + CARD_LAYOUT.vGap;
     const allLeaves = children.every((c) => getChildren(c, edges).length === 0);
     const gap = allLeaves ? CARD_LAYOUT.hGapLeaves : CARD_LAYOUT.hGap;
     const childWidths = children.map((c) => subtreeWidth(c, edges, widthCache));
     let childLeft = left;
     for (let i = 0; i < children.length; i++) {
-      placeNode(children[i], childLeft, depth + 1);
+      placeNode(children[i], childLeft, childY);
       childLeft += childWidths[i] + gap;
     }
   }

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { CardData } from "../types";
 
-const firstLine = (t: string) => (t || "").trim().split("\n")[0] || "Без текста";
+const previewText = (t: string | undefined) => (t ?? "").trim() || "Без текста";
 
 function authorLabel(data: CardData): string {
   const value = data["author"];
@@ -12,7 +12,7 @@ function authorLabel(data: CardData): string {
 function ClientCardNode({ id, data }: NodeProps) {
   const d = data as CardData;
   const title = d.title || "Сообщение клиента";
-  const preview = firstLine(d.text);
+  const preview = previewText(d.text);
   const author = authorLabel(d);
 
   return (
