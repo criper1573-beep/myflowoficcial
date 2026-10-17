@@ -1,10 +1,11 @@
-import type { HistoryQuery, HistoryResponse } from "./types";
+import type { Goal, HistoryQuery, HistoryResponse } from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly revision: number | null;
   readonly cardRevision: number | null;
+  readonly goalRevision: number | null;
 
   constructor(status: number, payload: unknown) {
     const detail = unwrapDetail(payload);
@@ -14,6 +15,7 @@ export class ApiError extends Error {
     this.code = isRecord(detail) && typeof detail.code === "string" ? detail.code : "";
     this.revision = isRecord(detail) && typeof detail.revision === "number" ? detail.revision : null;
     this.cardRevision = isRecord(detail) && typeof detail.cardRevision === "number" ? detail.cardRevision : null;
+    this.goalRevision = isRecord(detail) && typeof detail.goalRevision === "number" ? detail.goalRevision : null;
   }
 }
 
@@ -69,5 +71,45 @@ function historyQuery(query?: HistoryQuery): string {
 export const api = {
   history(projectId: string, query?: HistoryQuery): Promise<HistoryResponse> {
     return request(`/api/projects/${encodeURIComponent(projectId)}/history${historyQuery(query)}`);
+  },
+  goals: {
+    create(
+      projectId: string,
+      body: { projectRevision: number; text: string; note?: string },
+    ): Promise<{ goal: Goal; projectRevision: number; goals: Goal[] }> {
+      return request(`/api/projects/${encodeURIComponent(projectId)}/goals`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    update(
+      projectId: string,
+      goalId: string,
+      body: { revision: number; text?: string; note?: string },
+    ): Promise<{ goal: Goal; projectRevision: number }> {
+      return request(`/api/projects/${encodeURIComponent(projectId)}/goals/${encodeURIComponent(goalId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+    },
+    remove(
+      projectId: string,
+      goalId: string,
+      revision: number,
+    ): Promise<{ success: boolean; projectRevision: number; goals: Goal[] }> {
+      return request(
+        `/api/projects/${encodeURIComponent(projectId)}/goals/${encodeURIComponent(goalId)}?revision=${revision}`,
+        { method: "DELETE" },
+      );
+    },
+    reorder(
+      projectId: string,
+      body: { projectRevision: number; ids: string[] },
+    ): Promise<{ goals: Goal[]; projectRevision: number }> {
+      return request(`/api/projects/${encodeURIComponent(projectId)}/goals/reorder`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
   },
 };

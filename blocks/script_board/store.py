@@ -37,10 +37,18 @@ class StoreError(Exception):
 
 
 class RevisionConflict(StoreError):
-    def __init__(self, revision: int, message: str, card_revision: int | None = None):
+    def __init__(
+        self,
+        revision: int,
+        message: str,
+        card_revision: int | None = None,
+        goal_revision: int | None = None,
+    ):
         extra: dict[str, Any] = {"revision": revision}
         if card_revision is not None:
             extra["cardRevision"] = card_revision
+        if goal_revision is not None:
+            extra["goalRevision"] = goal_revision
         super().__init__("revision_conflict", message, 409, extra)
 
 
@@ -192,6 +200,25 @@ class BoardStore:
             if not isinstance(project.get("comments"), list):
                 project["comments"] = []
                 changed = True
+            if not isinstance(project.get("goals"), list):
+                project["goals"] = []
+                changed = True
+            else:
+                for index, goal in enumerate(project["goals"]):
+                    if not isinstance(goal, dict):
+                        continue
+                    if "revision" not in goal:
+                        goal["revision"] = 0
+                        changed = True
+                    if "order" not in goal:
+                        goal["order"] = index
+                        changed = True
+                    if "text" not in goal:
+                        goal["text"] = ""
+                        changed = True
+                    if "note" not in goal:
+                        goal["note"] = ""
+                        changed = True
             if "revision" not in project:
                 project["revision"] = 0
                 changed = True
@@ -216,6 +243,7 @@ class BoardStore:
             "cardId": ids.get("card_id"),
             "edgeId": ids.get("edge_id"),
             "commentId": ids.get("comment_id"),
+            "goalId": ids.get("goal_id"),
             "before": _deep(ids.get("before")),
             "after": _deep(ids.get("after")),
             "revision": revision,
@@ -247,6 +275,11 @@ class BoardStore:
         current = int(node.get("revision") or 0)
         if _as_int(expected, "revision") != current:
             raise RevisionConflict(project_revision, "Устаревшая ревизия карточки", card_revision=current)
+
+    def _check_goal_revision(self, goal: dict, expected: Any, project_revision: int) -> None:
+        current = int(goal.get("revision") or 0)
+        if _as_int(expected, "revision") != current:
+            raise RevisionConflict(project_revision, "Устаревшая ревизия цели", goal_revision=current)
 
     def _position(self, value: Any) -> dict:
         if not isinstance(value, dict) or "x" not in value or "y" not in value:
@@ -340,6 +373,38 @@ class BoardStore:
         comment["text"] = text if isinstance(text, str) else str(text or "")
         return comment
 
+    def _prepare_goal(self, raw: Any, *, revision: int, order: int) -> dict:
+        if not isinstance(raw, dict):
+            raise StoreError("bad_request", "Цель должна быть объектом")
+        text = raw.get("text", "")
+        if not isinstance(text, str) or not text.strip():
+            raise StoreError("bad_request", "Нужен текст цели")
+        note = raw.get("note", "")
+        if note is None:
+            note = ""
+        if not isinstance(note, str):
+            raise StoreError("bad_request", "note цели должен быть строкой")
+        return {
+            "id": _member_id(raw.get("id"), "id цели"),
+            "text": text.strip(),
+            "note": note,
+            "order": order,
+            "revision": revision,
+        }
+
+    def _same_goal(self, old: dict, new: dict) -> bool:
+        return (
+            (old.get("text") or "") == (new.get("text") or "")
+            and (old.get("note") or "") == (new.get("note") or "")
+            and int(old.get("order") or 0) == int(new.get("order") or 0)
+        )
+
+    def _sort_goals(self, goals: list) -> list:
+        return sorted(
+            goals,
+            key=lambda goal: (int(goal.get("order") or 0) if isinstance(goal, dict) else 0, goal.get("id") if isinstance(goal, dict) else ""),
+        )
+
     def _same_edge(self, old: dict, new: dict) -> bool:
         return old.get("source") == new.get("source") and old.get("target") == new.get("target")
 
@@ -395,6 +460,7 @@ class BoardStore:
         nodes: list | None = None,
         edges: list | None = None,
         comments: list | None = None,
+        goals: list | None = None,
         author: str,
     ) -> dict:
         if not isinstance(name, str):
@@ -413,6 +479,7 @@ class BoardStore:
                 nodes=nodes or [],
                 edges=edges or [],
                 comments=comments or [],
+                goals=goals or [],
             )
             data[project_id] = project
             self._write(data)
@@ -422,7 +489,16 @@ class BoardStore:
             )
             return {"id": project_id, "revision": 1}
 
-    def _blank_project(self, *, name: str, script_description: str, nodes: list, edges: list, comments: list) -> dict:
+    def _blank_project(
+        self,
+        *,
+        name: str,
+        script_description: str,
+        nodes: list,
+        edges: list,
+        comments: list,
+        goals: list | None = None,
+    ) -> dict:
         built_nodes = []
         seen: set[str] = set()
         for raw in nodes:
@@ -456,6 +532,17 @@ class BoardStore:
                 raise StoreError("conflict", f"Комментарий {comment['id']} уже есть", 409)
             comment_ids.add(comment["id"])
             built_comments.append(comment)
+        built_goals = []
+        goal_ids: set[str] = set()
+        for index, raw in enumerate(goals or []):
+            item = _deep(raw) if isinstance(raw, dict) else {}
+            if not item.get("id"):
+                item["id"] = self._new_id("goal", goal_ids)
+            goal = self._prepare_goal(item, revision=1, order=index)
+            if goal["id"] in goal_ids:
+                raise StoreError("conflict", f"Цель {goal['id']} уже есть", 409)
+            goal_ids.add(goal["id"])
+            built_goals.append(goal)
         ts = now_iso()
         return {
             "name": name,
@@ -463,6 +550,7 @@ class BoardStore:
             "edges": built_edges,
             "scriptDescription": script_description,
             "comments": built_comments,
+            "goals": built_goals,
             "revision": 1,
             "archived": False,
             "createdAt": ts,
@@ -490,6 +578,7 @@ class BoardStore:
                     nodes=body.get("nodes") or [],
                     edges=body.get("edges") or [],
                     comments=body.get("comments") or [],
+                    goals=body.get("goals") or [],
                 )
                 data[project_id] = project
                 self._write(data)
@@ -592,6 +681,38 @@ class BoardStore:
             if comment_id not in seen_comments:
                 comment_events.append(("comment.delete", comment_id, previous, None))
 
+        goal_events: list[tuple] = []
+        if "goals" not in body:
+            new_goals = self._sort_goals(list(project.get("goals") or []))
+        else:
+            if not isinstance(body.get("goals"), list):
+                raise StoreError("bad_request", "goals должен быть массивом")
+            old_goals = {goal["id"]: goal for goal in project.get("goals") or [] if isinstance(goal, dict) and goal.get("id")}
+            new_goals = []
+            seen_goals: set[str] = set()
+            for index, raw in enumerate(body.get("goals") or []):
+                if not isinstance(raw, dict):
+                    raise StoreError("bad_request", "Цель должна быть объектом")
+                previous = old_goals.get(raw.get("id"))
+                goal = self._prepare_goal(
+                    raw,
+                    revision=int(previous.get("revision") or 0) + 1 if previous else 1,
+                    order=index,
+                )
+                if goal["id"] in seen_goals:
+                    raise StoreError("conflict", f"Цель {goal['id']} уже есть", 409)
+                seen_goals.add(goal["id"])
+                if previous is None:
+                    goal_events.append(("goal.create", goal["id"], None, goal))
+                elif self._same_goal(previous, goal):
+                    goal = previous
+                else:
+                    goal_events.append(("goal.update", goal["id"], previous, goal))
+                new_goals.append(goal)
+            for goal_id, previous in old_goals.items():
+                if goal_id not in seen_goals:
+                    goal_events.append(("goal.delete", goal_id, previous, None))
+
         meta: list[tuple] = []
         if (name.strip() or "Без названия") != (project.get("name") or ""):
             meta.append(("project.rename", {"name": project.get("name")}, {"name": name.strip() or "Без названия"}))
@@ -603,7 +724,7 @@ class BoardStore:
                     {"scriptDescription": description},
                 )
             )
-        if not node_events and not edge_events and not comment_events and not meta:
+        if not node_events and not edge_events and not comment_events and not goal_events and not meta:
             return project, []
 
         updated = _deep(project)
@@ -612,6 +733,7 @@ class BoardStore:
         updated["nodes"] = new_nodes
         updated["edges"] = new_edges
         updated["comments"] = new_comments
+        updated["goals"] = new_goals
         next_revision = int(project.get("revision") or 0) + 1
         self._touch(updated, next_revision)
         events = []
@@ -632,6 +754,17 @@ class BoardStore:
                     type_=event_type,
                     revision=next_revision,
                     comment_id=comment_id,
+                    before=before,
+                    after=after,
+                )
+            )
+        for event_type, goal_id, before, after in goal_events:
+            events.append(
+                self._event(
+                    author=author,
+                    type_=event_type,
+                    revision=next_revision,
+                    goal_id=goal_id,
                     before=before,
                     after=after,
                 )
@@ -947,6 +1080,110 @@ class BoardStore:
                 author=author, type_="comment.delete", revision=next_revision, comment_id=comment_id, before=current, after=None
             )
             return {"success": True, "projectRevision": next_revision}, [event]
+
+        return self._commit(project_id, mutate)
+
+    def create_goal(self, project_id: str, body: dict, author: str) -> dict:
+        def mutate(data: dict):
+            project = self._require(data, project_id)
+            self._check_project_revision(project, body.get("projectRevision"))
+            goals = [item for item in project.get("goals") or [] if isinstance(item, dict)]
+            taken = {item.get("id") for item in goals if isinstance(item.get("id"), str)}
+            raw = {key: value for key, value in body.items() if key != "projectRevision"}
+            if not raw.get("id"):
+                raw["id"] = self._new_id("goal", {item for item in taken if isinstance(item, str)})
+            goal = self._prepare_goal(raw, revision=1, order=len(goals))
+            if goal["id"] in taken:
+                raise StoreError("conflict", "Цель с таким id уже есть", 409, {"revision": project["revision"]})
+            goals.append(goal)
+            project["goals"] = goals
+            next_revision = int(project.get("revision") or 0) + 1
+            self._touch(project, next_revision)
+            event = self._event(author=author, type_="goal.create", revision=next_revision, goal_id=goal["id"], before=None, after=goal)
+            return {"goal": _deep(goal), "projectRevision": next_revision, "goals": _deep(goals)}, [event]
+
+        return self._commit(project_id, mutate)
+
+    def update_goal(self, project_id: str, goal_id: str, body: dict, author: str) -> dict:
+        goal_id = _member_id(goal_id, "id цели")
+
+        def mutate(data: dict):
+            project = self._require(data, project_id)
+            goals = [item for item in project.get("goals") or [] if isinstance(item, dict)]
+            index = next((i for i, item in enumerate(goals) if item.get("id") == goal_id), None)
+            if index is None:
+                raise NotFound("Цель не найдена")
+            current = goals[index]
+            self._check_goal_revision(current, body.get("revision"), int(project.get("revision") or 0))
+            merged = _deep(current)
+            if "text" in body:
+                merged["text"] = body["text"]
+            if "note" in body:
+                merged["note"] = "" if body["note"] is None else body["note"]
+            prepared = self._prepare_goal(merged, revision=int(current.get("revision") or 0), order=int(current.get("order") or 0))
+            if self._same_goal(current, prepared):
+                return {"goal": _deep(current), "projectRevision": int(project.get("revision") or 0)}, []
+            prepared["revision"] = int(current.get("revision") or 0) + 1
+            goals[index] = prepared
+            project["goals"] = goals
+            next_revision = int(project.get("revision") or 0) + 1
+            self._touch(project, next_revision)
+            event = self._event(
+                author=author, type_="goal.update", revision=next_revision, goal_id=goal_id, before=current, after=prepared
+            )
+            return {"goal": _deep(prepared), "projectRevision": next_revision}, [event]
+
+        return self._commit(project_id, mutate)
+
+    def delete_goal(self, project_id: str, goal_id: str, revision: Any, author: str) -> dict:
+        goal_id = _member_id(goal_id, "id цели")
+
+        def mutate(data: dict):
+            project = self._require(data, project_id)
+            goals = [item for item in project.get("goals") or [] if isinstance(item, dict)]
+            current = next((item for item in goals if item.get("id") == goal_id), None)
+            if current is None:
+                raise NotFound("Цель не найдена")
+            self._check_goal_revision(current, revision, int(project.get("revision") or 0))
+            remaining = [item for item in goals if item.get("id") != goal_id]
+            for index, item in enumerate(remaining):
+                item["order"] = index
+            project["goals"] = remaining
+            next_revision = int(project.get("revision") or 0) + 1
+            self._touch(project, next_revision)
+            event = self._event(author=author, type_="goal.delete", revision=next_revision, goal_id=goal_id, before=current, after=None)
+            return {"success": True, "projectRevision": next_revision, "goals": _deep(remaining)}, [event]
+
+        return self._commit(project_id, mutate)
+
+    def reorder_goals(self, project_id: str, body: dict, author: str) -> dict:
+        def mutate(data: dict):
+            project = self._require(data, project_id)
+            self._check_project_revision(project, body.get("projectRevision"))
+            ids = body.get("ids")
+            if not isinstance(ids, list) or not all(isinstance(item, str) for item in ids):
+                raise StoreError("bad_request", "ids должен быть массивом id целей")
+            goals = [item for item in project.get("goals") or [] if isinstance(item, dict)]
+            by_id = {item.get("id"): item for item in goals}
+            if set(ids) != set(by_id) or len(ids) != len(by_id):
+                raise StoreError("bad_request", "ids должен содержать каждую цель ровно один раз")
+            before = [{"id": item.get("id"), "order": item.get("order")} for item in self._sort_goals(goals)]
+            ordered = []
+            changed = False
+            for index, goal_id in enumerate(ids):
+                item = _deep(by_id[goal_id])
+                if int(item.get("order") or 0) != index:
+                    changed = True
+                item["order"] = index
+                ordered.append(item)
+            if not changed:
+                return {"goals": _deep(self._sort_goals(goals)), "projectRevision": int(project.get("revision") or 0)}, []
+            project["goals"] = ordered
+            next_revision = int(project.get("revision") or 0) + 1
+            self._touch(project, next_revision)
+            after = [{"id": item["id"], "order": item["order"]} for item in ordered]
+            event = self._event(author=author, type_="goal.reorder", revision=next_revision, before=before, after=after)
+            return {"goals": _deep(ordered), "projectRevision": next_revision}, [event]
 
         return self._commit(project_id, mutate)
 

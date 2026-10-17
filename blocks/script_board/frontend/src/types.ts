@@ -26,7 +26,19 @@ export type HistoryEventType =
   | "edge.delete"
   | "comment.create"
   | "comment.update"
-  | "comment.delete";
+  | "comment.delete"
+  | "goal.create"
+  | "goal.update"
+  | "goal.delete"
+  | "goal.reorder";
+
+export interface Goal {
+  id: string;
+  text: string;
+  note?: string;
+  order: number;
+  revision: number;
+}
 
 export interface HistoryEvent {
   id: string;
@@ -36,6 +48,7 @@ export interface HistoryEvent {
   cardId: string | null;
   edgeId: string | null;
   commentId: string | null;
+  goalId?: string | null;
   before: unknown;
   after: unknown;
   revision: number;

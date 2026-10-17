@@ -192,12 +192,16 @@ def test_migration_keeps_nodes_edges_and_comments(storage):
     assert left["nodes"][0]["revision"] == 0
     assert left["edges"] == [{"id": "xy-edge__n1-gone", "source": "n1", "target": "gone"}]
     assert left["comments"][0]["text"] == "заметка"
+    assert left["goals"] == []
+    assert right["goals"] == []
     assert right["nodes"][0]["data"]["text"] == "Текст Леши"
     assert right["comments"][0]["text"] == "коммент Леши"
 
     stored = json.loads((storage / "projects.json").read_text(encoding="utf-8"))
     assert set(stored) == {"project-1771855166843", "project-1772813395846"}
     assert stored["project-1771855166843"]["nodes"][0]["width"] == 280
+    assert stored["project-1771855166843"]["goals"] == []
+    assert stored["project-1772813395846"]["goals"] == []
     history = client.get("/api/projects/project-1771855166843/history")
     assert history.status_code == 200
     assert history.json()["events"] == []
@@ -370,6 +374,127 @@ def test_full_put_still_works_and_stale_revision_is_409(storage):
     assert "project-manual" in {item["id"] for item in listed}
     hidden = client.get("/api/projects?include_archived=true").json()
     assert project_id in {item["id"] for item in hidden}
+
+
+def test_goals_keep_revision_conflict_and_author(storage):
+    client = _client()
+    created = client.post("/api/projects", json={"name": "Проект 1"})
+    project_id = created.json()["id"]
+    revision = created.json()["revision"]
+
+    first = client.post(
+        f"/api/projects/{project_id}/goals",
+        headers={"X-Remote-User": "sonya"},
+        json={"projectRevision": revision, "text": "Адрес объекта", "note": "город и улица"},
+    )
+    assert first.status_code == 200, first.text
+    address = first.json()["goal"]
+    assert address["revision"] == 1
+    assert address["order"] == 0
+    revision = first.json()["projectRevision"]
+
+    second = client.post(
+        f"/api/projects/{project_id}/goals",
+        headers={"X-Remote-User": "alexey"},
+        json={"projectRevision": revision, "text": "Бюджет"},
+    )
+    assert second.status_code == 200, second.text
+    budget = second.json()["goal"]
+    revision = second.json()["projectRevision"]
+
+    stale = client.patch(
+        f"/api/projects/{project_id}/goals/{address['id']}",
+        json={"revision": 0, "text": "чужой адрес"},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"]["goalRevision"] == 1
+    kept = client.get(f"/api/projects/{project_id}").json()
+    assert kept["goals"][0]["text"] == "Адрес объекта"
+
+    edited = client.patch(
+        f"/api/projects/{project_id}/goals/{address['id']}",
+        headers={"X-Remote-User": "alexey"},
+        json={"revision": 1, "text": "Адрес объекта", "note": "с номером дома"},
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["goal"]["revision"] == 2
+    revision = edited.json()["projectRevision"]
+
+    moved = client.post(
+        f"/api/projects/{project_id}/goals/reorder",
+        headers={"X-Remote-User": "alexey"},
+        json={"projectRevision": revision, "ids": [budget["id"], address["id"]]},
+    )
+    assert moved.status_code == 200, moved.text
+    assert [item["text"] for item in moved.json()["goals"]] == ["Бюджет", "Адрес объекта"]
+    revision = moved.json()["projectRevision"]
+
+    events = client.get(f"/api/projects/{project_id}/history").json()["events"]
+    created_address = next(event for event in events if event["type"] == "goal.create" and event["goalId"] == address["id"])
+    assert created_address["author"] == "sonya"
+    assert any(event["type"] == "goal.update" and event["author"] == "alexey" for event in events)
+    assert any(event["type"] == "goal.reorder" and event["author"] == "alexey" for event in events)
+
+    project = client.get(f"/api/projects/{project_id}").json()
+    untouched = client.put(
+        f"/api/projects/{project_id}",
+        json={
+            "name": project["name"],
+            "revision": project["revision"],
+            "scriptDescription": project["scriptDescription"],
+            "nodes": project["nodes"],
+            "edges": project["edges"],
+            "comments": project["comments"],
+        },
+    )
+    assert untouched.status_code == 200, untouched.text
+    assert [item["text"] for item in client.get(f"/api/projects/{project_id}").json()["goals"]] == [
+        "Бюджет",
+        "Адрес объекта",
+    ]
+
+    removed = client.delete(f"/api/projects/{project_id}/goals/{budget['id']}?revision=1")
+    assert removed.status_code == 200, removed.text
+    assert [item["text"] for item in removed.json()["goals"]] == ["Адрес объекта"]
+    late = client.delete(f"/api/projects/{project_id}/goals/{budget['id']}?revision=1")
+    assert late.status_code == 404
+
+    store = BoardStore(storage)
+    raced: list[tuple] = []
+
+    def write(text: str) -> None:
+        try:
+            saved = store.update_goal(project_id, address["id"], {"revision": 2, "text": text}, "human")
+            raced.append(("ok", saved["goal"]["text"]))
+        except RevisionConflict:
+            raced.append(("conflict", text))
+
+    threads = [threading.Thread(target=write, args=(text,)) for text in ("адрес А", "адрес Б")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(item[0] for item in raced) == ["conflict", "ok"]
+    winner = next(item[1] for item in raced if item[0] == "ok")
+    final = store.get_project(project_id)
+    assert final["goals"][0]["text"] == winner
+
+
+def test_old_goal_without_revision_is_kept(storage):
+    legacy = {
+        "project-old": {
+            "name": "Проект 1",
+            "nodes": [],
+            "edges": [],
+            "comments": [],
+            "goals": [{"id": "goal-area", "text": "Площадь", "order": 0}],
+        }
+    }
+    (storage / "projects.json").write_text(json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    project = _client().get("/api/projects/project-old").json()
+    assert project["goals"][0]["text"] == "Площадь"
+    assert project["goals"][0]["revision"] == 0
+    assert project["goals"][0]["note"] == ""
 
 
 def test_removed_ai_routes_are_404(storage):

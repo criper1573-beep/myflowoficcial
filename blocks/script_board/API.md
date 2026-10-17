@@ -91,7 +91,41 @@ curl -u "$AUTH" -H 'Content-Type: application/json' \
   "$SB/api/projects/$ID/comments"
 ```
 
-Ответ точечных методов: `{node|edge|comment, projectRevision}` или `{success, projectRevision}`.
+Ответ точечных методов: `{node|edge|comment|goal, projectRevision}` или `{success, projectRevision}`.
+
+## Цели
+
+`goals` — список того, что нужно узнать у клиента, чтобы скрипт можно было закрыть: адрес объекта, площадь, сроки, бюджет, план и другие пункты. У каждого проекта свой список. Старый `projects.json` без поля получает `goals: []`.
+
+Пункт: `{id, text, note?, order, revision}`. `order` — позиция с нуля. `note` можно не передавать.
+
+Как у карточек: правка и удаление сверяют ревизию самой цели. Создание и смена порядка сверяют ревизию проекта. Устаревшая ревизия — `409`, в теле есть `goalRevision`.
+
+```bash
+# добавить пункт
+curl -u "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"projectRevision":1,"text":"Адрес объекта","note":"город, улица, дом"}' \
+  "$SB/api/projects/$ID/goals"
+
+# поправить текст своей ревизией цели
+curl -u "$AUTH" -X PATCH -H 'Content-Type: application/json' \
+  -d '{"revision":1,"text":"Адрес объекта","note":"уточнить подъезд"}' \
+  "$SB/api/projects/$ID/goals/$GOAL"
+
+# удалить
+curl -u "$AUTH" -X DELETE "$SB/api/projects/$ID/goals/$GOAL?revision=2"
+
+# порядок: ids — все цели проекта, каждая один раз
+curl -u "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"projectRevision":4,"ids":["goal-b","goal-a"]}' \
+  "$SB/api/projects/$ID/goals/reorder"
+```
+
+События истории: `goal.create`, `goal.update`, `goal.delete`, `goal.reorder`. В `before`/`after` видно текст и заметку, у перестановки — порядок `{id, order}`. Автор берётся так же, как у карточек.
+
+Полный `PUT` без поля `goals` список не стирает. Соня может вести цели точечно и параллельно с доской.
+
+Соня сначала заводит цели, потом строит ветки скрипта так, чтобы каждый пункт был задан клиенту или закрыт ответом. Перед следующей сессией смотрит `GET /history?exclude_author=sonya&since=...`: если цель изменил человек, скрипт нужно поправить под новый текст.
 
 `PATCH /comments/{id}` требует `projectRevision` и может менять `text`, `x`, `y`.  
 `DELETE /comments/{id}?projectRevision=` удаляет комментарий.
@@ -109,16 +143,16 @@ curl -u "$AUTH" \
 - `author` — только этот автор, без учёта регистра.
 - `exclude_author` — все, кроме этого автора, без учёта регистра.
 
-Событие: `id`, `ts`, `author`, `type`, `cardId`, `edgeId`, `commentId`, `before`, `after`, `revision`.  
-Типы: `project.create|rename|description|archive|restore`, `card.create|update|delete`, `edge.create|update|delete`, `comment.create|update|delete`.
+Событие: `id`, `ts`, `author`, `type`, `cardId`, `edgeId`, `commentId`, `goalId`, `before`, `after`, `revision`.  
+Типы: `project.create|rename|description|archive|restore`, `card.create|update|delete`, `edge.create|update|delete`, `comment.create|update|delete`, `goal.create|update|delete|reorder`.
 
 ## Порядок для бота Сони
 
 1. `POST /api/projects` и сохранить `revision`.
-2. `POST /cards` с возвращённым `projectRevision`. В следующем вызове использовать новый `projectRevision` из ответа.
-3. `POST /edges` так же, с актуальной ревизией проекта.
+2. `POST /goals` по пунктам, которые скрипт должен закрыть. Дальше использовать `projectRevision` из ответа.
+3. `POST /cards` и `POST /edges` с актуальной ревизией проекта: ветки спрашивают клиента о целях и фиксируют ответ.
 4. Перед следующей сессией: `GET /history?exclude_author=sonya&since=<id последнего своего события>`.
-5. Правку чужой карточки делать `PATCH` с её собственной `revision`. На `409` перечитать `GET /api/projects/{id}` и повторить.
+5. Правку чужой карточки или цели делать `PATCH` с её собственной `revision`. На `409` перечитать `GET /api/projects/{id}` и повторить.
 
 Полный `PUT` остаётся для автосохранения интерфейса. Бот может им не пользоваться.
 

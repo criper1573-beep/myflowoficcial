@@ -17,6 +17,10 @@ const TYPE_LABEL: Record<HistoryEventType, string> = {
   "comment.create": "Комментарий создан",
   "comment.update": "Комментарий изменён",
   "comment.delete": "Комментарий удалён",
+  "goal.create": "Цель добавлена",
+  "goal.update": "Цель изменена",
+  "goal.delete": "Цель удалена",
+  "goal.reorder": "Порядок целей изменён",
 };
 
 function formatTime(ts: string): string {

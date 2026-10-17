@@ -108,12 +108,16 @@ async def api_create_project(request: Request):
     """Создать проект, вернуть id и revision."""
     body = await _json_object(request)
     description = body.get("scriptDescription", body.get("script_description", ""))
+    goals = body.get("goals") or []
+    if not isinstance(goals, list):
+        raise StoreError("bad_request", "goals должен быть массивом")
     return get_store().create_project(
         name=body.get("name") or "",
         script_description=description if isinstance(description, str) else "",
         nodes=body.get("nodes") or [],
         edges=body.get("edges") or [],
         comments=body.get("comments") or [],
+        goals=goals,
         author=author_from_request(request),
     )
 
@@ -207,6 +211,33 @@ def api_delete_comment(
 ):
     _check_project_id(project_id)
     return get_store().delete_comment(project_id, comment_id, project_revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/goals")
+async def api_create_goal(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().create_goal(project_id, body, author_from_request(request))
+
+
+@app.patch("/api/projects/{project_id}/goals/{goal_id}")
+async def api_update_goal(project_id: str, goal_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().update_goal(project_id, goal_id, body, author_from_request(request))
+
+
+@app.delete("/api/projects/{project_id}/goals/{goal_id}")
+def api_delete_goal(project_id: str, goal_id: str, request: Request, revision: int = Query(...)):
+    _check_project_id(project_id)
+    return get_store().delete_goal(project_id, goal_id, revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/goals/reorder")
+async def api_reorder_goals(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().reorder_goals(project_id, body, author_from_request(request))
 
 
 @app.get("/api/projects/{project_id}/history")

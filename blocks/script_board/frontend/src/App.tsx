@@ -16,8 +16,10 @@ import {
 } from "@xyflow/react";
 import { nodeTypes } from "./nodes";
 import { CARD_LAYOUT, computeLayoutPositions } from "./utils";
-import type { CardData } from "./types";
+import type { CardData, Goal } from "./types";
+import GoalsPanel from "./GoalsPanel";
 import HistoryPanel from "./HistoryPanel";
+import { readSidePanel, writeSidePanel, type SideTab } from "./sidePanelStorage";
 import TextEditorModal from "./TextEditorModal";
 import SettingsModal from "./SettingsModal";
 import ProjectPickerModal from "./ProjectPickerModal";
@@ -51,13 +53,23 @@ function App() {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectsList, setProjectsList] = useState<{ id: string; name: string }[]>([]);
   const [comments, setComments] = useState<CommentItem[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [revision, setRevision] = useState(0);
+  const [side, setSide] = useState(readSidePanel);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [cardBadges, setCardBadges] = useState<Record<string, string>>({});
   const [commentMode, setCommentMode] = useState(false);
   const [addCommentPosition, setAddCommentPosition] = useState<{ x: number; y: number } | null>(null);
   const [viewCommentId, setViewCommentId] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
+
+  useEffect(() => {
+    writeSidePanel(side);
+  }, [side]);
+
+  const showSide = (tab: SideTab) => {
+    setSide((current) => (current.open && current.tab === tab ? { open: false, tab } : { open: true, tab }));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +92,7 @@ function App() {
             setNodes([]);
             setEdges([]);
             setScriptDescription("");
+            setGoals([]);
             setProjectName("Проект 1");
             setLoading(false);
             return;
@@ -94,6 +107,7 @@ function App() {
           setScriptDescription(loaded.scriptDescription);
           setProjectName(loaded.name);
           setComments(loaded.comments ?? []);
+          setGoals(loaded.goals ?? []);
           setRevision(loaded.revision);
         }
         setLoading(false);
@@ -117,6 +131,7 @@ function App() {
       setScriptDescription(loaded.scriptDescription);
       setProjectName(loaded.name);
       setComments(loaded.comments ?? []);
+      setGoals(loaded.goals ?? []);
       setRevision(loaded.revision);
       setProjectPickerOpen(false);
     },
@@ -134,6 +149,7 @@ function App() {
       setScriptDescription("");
       setProjectName(name.trim() || "Новый проект");
       setComments([]);
+      setGoals([]);
       setProjectPickerOpen(false);
     },
     [setNodes, setEdges],
@@ -438,6 +454,7 @@ function App() {
     setScriptDescription(loaded.scriptDescription);
     setProjectName(loaded.name);
     setComments(loaded.comments ?? []);
+    setGoals(loaded.goals ?? []);
     setRevision(loaded.revision);
   }, [currentProjectId, setNodes, setEdges]);
 
@@ -473,9 +490,8 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={side.open ? "app app--side-open" : "app"}>
       <input className="panel-toggle" type="checkbox" id="desc-open" defaultChecked />
-      <input className="panel-toggle" type="checkbox" id="hist-open" defaultChecked />
       <header className="toolbar">
         <div className="brand">
           <span className="logo">
@@ -537,9 +553,22 @@ function App() {
         <button type="button" className="tool" onClick={() => setSettingsOpen(true)} title="Настройки скрипта">
           Настройки
         </button>
-        <label className="tool tool-hist" htmlFor="hist-open">
+        <button
+          type="button"
+          className={side.open && side.tab === "goals" ? "tool tool-side tool--active" : "tool tool-side"}
+          onClick={() => showSide("goals")}
+          aria-pressed={side.open && side.tab === "goals"}
+        >
+          Цели
+        </button>
+        <button
+          type="button"
+          className={side.open && side.tab === "history" ? "tool tool-side tool--active" : "tool tool-side"}
+          onClick={() => showSide("history")}
+          aria-pressed={side.open && side.tab === "history"}
+        >
           История
-        </label>
+        </button>
       </header>
       <div className="workspace">
         <aside className="panel panel-desc" aria-label="Описание проекта">
@@ -588,20 +617,57 @@ function App() {
             <Controls />
           </ReactFlow>
         </div>
-        <aside className="panel panel-hist" aria-label="История изменений">
+        <aside className="panel panel-side" aria-label="История изменений">
           <span className="panel__handle" aria-hidden />
           <div className="panel__head">
-            <h2>История изменений</h2>
-            <label className="panel__x" htmlFor="hist-open" aria-label="Свернуть историю">
+            <div className="panel__tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                className={side.tab === "goals" ? "panel__tab panel__tab--active" : "panel__tab"}
+                aria-selected={side.tab === "goals"}
+                onClick={() => setSide({ open: true, tab: "goals" })}
+              >
+                Цели
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={side.tab === "history" ? "panel__tab panel__tab--active" : "panel__tab"}
+                aria-selected={side.tab === "history"}
+                onClick={() => setSide({ open: true, tab: "history" })}
+              >
+                История
+              </button>
+            </div>
+            <button type="button" className="panel__x" onClick={() => setSide((current) => ({ open: false, tab: current.tab }))} aria-label="Свернуть панель">
               ×
-            </label>
+            </button>
           </div>
-          <div className="history" id="history-slot" data-history-hook="">
+          <div className={side.tab === "goals" ? "side-pane" : "side-pane side-pane--hidden"}>
+            <GoalsPanel
+              projectId={currentProjectId}
+              projectRevision={revision}
+              goals={goals}
+              onChange={(nextGoals, nextRevision) => {
+                setGoals(nextGoals);
+                setRevision(nextRevision);
+              }}
+              onConflict={() => {
+                void reloadFromServer();
+              }}
+            />
+          </div>
+          <div
+            className={side.tab === "history" ? "history" : "history side-pane--hidden"}
+            id="history-slot"
+            data-history-hook=""
+          >
             <HistoryPanel projectId={currentProjectId} onCardBadges={setCardBadges} />
           </div>
         </aside>
         <label className="backdrop backdrop-desc" htmlFor="desc-open" aria-label="Закрыть описание" />
-        <label className="backdrop backdrop-hist" htmlFor="hist-open" aria-label="Закрыть историю" />
+        <button type="button" className="backdrop backdrop-side" aria-label="Закрыть панель" onClick={() => setSide((current) => ({ open: false, tab: current.tab }))} />
       </div>
 
       <TextEditorModal

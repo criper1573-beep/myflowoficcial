@@ -1,5 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
-import type { CardData } from "./types";
+import type { CardData, Goal } from "./types";
 import { ApiError, request } from "./api";
 
 const CURRENT_KEY = "script_board_current";
@@ -31,6 +31,7 @@ export interface LoadedProject {
   scriptDescription: string;
   name: string;
   comments: CommentItem[];
+  goals: Goal[];
   revision: number;
 }
 
@@ -96,6 +97,7 @@ function mapProject(project: {
   edges?: Edge[];
   scriptDescription?: string;
   comments?: CommentItem[];
+  goals?: Goal[];
   revision?: number;
 }): LoadedProject {
   const nodes: Node<CardData>[] = (project.nodes ?? []).map((node) => ({
@@ -114,6 +116,7 @@ function mapProject(project: {
     scriptDescription: project.scriptDescription ?? "",
     name: project.name ?? "Без названия",
     comments: project.comments ?? [],
+    goals: [...(project.goals ?? [])].sort((a, b) => a.order - b.order),
     revision: project.revision ?? 0,
   };
 }
