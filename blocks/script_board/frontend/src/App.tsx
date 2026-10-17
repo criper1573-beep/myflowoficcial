@@ -11,11 +11,13 @@ import {
   type NodeTypes,
   type NodeChange,
   Controls,
-  Panel,
+  Background,
+  BackgroundVariant,
 } from "@xyflow/react";
 import { nodeTypes } from "./nodes";
 import { CARD_LAYOUT, computeLayoutPositions } from "./utils";
 import type { CardData } from "./types";
+import HistoryPanel from "./HistoryPanel";
 import TextEditorModal from "./TextEditorModal";
 import SettingsModal from "./SettingsModal";
 import ProjectPickerModal from "./ProjectPickerModal";
@@ -51,6 +53,7 @@ function App() {
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [revision, setRevision] = useState(0);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [cardBadges, setCardBadges] = useState<Record<string, string>>({});
   const [commentMode, setCommentMode] = useState(false);
   const [addCommentPosition, setAddCommentPosition] = useState<{ x: number; y: number } | null>(null);
   const [viewCommentId, setViewCommentId] = useState<string | null>(null);
@@ -272,9 +275,10 @@ function App() {
           onDuplicate: handleDuplicate,
           onAddChild: handleAddChild,
           onDelete: handleDelete,
+          author: cardBadges[n.id],
         } as CardData,
       })),
-    [nodes, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete],
+    [nodes, cardBadges, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete],
   );
 
   const commentNodes: Node[] = useMemo(
@@ -470,58 +474,134 @@ function App() {
 
   return (
     <div className="app">
-      <div ref={flowContainerRef} className="app__flow-wrap">
-      {syncMessage && (
-        <div className="app__sync" role="status">
-          {syncMessage}
+      <input className="panel-toggle" type="checkbox" id="desc-open" defaultChecked />
+      <input className="panel-toggle" type="checkbox" id="hist-open" defaultChecked />
+      <header className="toolbar">
+        <div className="brand">
+          <span className="logo">
+            FL<span className="logo-o">O</span>W
+          </span>
+          <span className="brand-name">Доска скриптов</span>
         </div>
-      )}
-      <ReactFlow
-        nodes={displayNodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={handlePaneClick}
-        nodeTypes={nodeTypes as NodeTypes}
-        panOnDrag
-        panActivationKeyCode="Space"
-        fitView
-      >
-        <Controls />
-        <Panel position="top-left" className="toolbar">
-          <button type="button" onClick={() => addNode("client")}>
-            + Сообщение клиента
-          </button>
-          <button type="button" onClick={() => addNode("our_response")}>
-            + Наш ответ
-          </button>
-          <button
-            type="button"
-            className={commentMode ? "toolbar__btn--active" : ""}
-            onClick={() => setCommentMode((v) => !v)}
-            title="Режим комментирования: клик по полю создаёт комментарий"
+        <span className="sep" />
+        <button
+          type="button"
+          className="tool tool-project"
+          onClick={openProjectPicker}
+          title="Выбрать проект"
+        >
+          <span className="kicker">Выбрать проект</span>
+          <span className="pname">{projectName || "Без названия"}</span>
+        </button>
+        <span className="sep" />
+        <button
+          type="button"
+          className="tool"
+          onClick={() => addNode("client")}
+          title="Добавить сообщение клиента"
+        >
+          + Клиент
+        </button>
+        <button
+          type="button"
+          className="tool"
+          onClick={() => addNode("our_response")}
+          title="Добавить наш ответ"
+        >
+          + Ответ
+        </button>
+        <button
+          type="button"
+          className={commentMode ? "tool tool--active" : "tool"}
+          onClick={() => setCommentMode((v) => !v)}
+          title="Режим комментирования: клик по полю создаёт комментарий"
+          aria-pressed={commentMode}
+        >
+          {commentMode ? "✓ Комментарии" : "Комментарии"}
+        </button>
+        <button
+          type="button"
+          className="tool"
+          onClick={handleArrange}
+          title="Выровнять карточки по уровням"
+        >
+          Упорядочить
+        </button>
+        <button type="button" className="tool" onClick={handleDownloadPdf} title="Скачать в PDF">
+          PDF
+        </button>
+        <span className="spacer" />
+        <label className="tool tool-desc" htmlFor="desc-open">
+          Описание
+        </label>
+        <button type="button" className="tool" onClick={() => setSettingsOpen(true)} title="Настройки скрипта">
+          Настройки
+        </button>
+        <label className="tool tool-hist" htmlFor="hist-open">
+          История
+        </label>
+      </header>
+      <div className="workspace">
+        <aside className="panel panel-desc" aria-label="Описание проекта">
+          <span className="panel__handle" aria-hidden />
+          <div className="panel__head">
+            <h2>Описание проекта</h2>
+            <label className="panel__x" htmlFor="desc-open" aria-label="Свернуть описание">
+              ×
+            </label>
+          </div>
+          <textarea
+            className="panel__desc"
+            value={scriptDescription}
+            onChange={(e) => setScriptDescription(e.target.value)}
+            placeholder="Описание проекта / скрипта"
+          />
+        </aside>
+        <div
+          ref={flowContainerRef}
+          className={commentMode ? "app__flow-wrap app__flow-wrap--comment" : "app__flow-wrap"}
+        >
+          {syncMessage && (
+            <div className="app__sync" role="status">
+              {syncMessage}
+            </div>
+          )}
+          <ReactFlow
+            nodes={displayNodes}
+            edges={edges}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onPaneClick={handlePaneClick}
+            nodeTypes={nodeTypes as NodeTypes}
+            panOnDrag
+            panActivationKeyCode="Space"
+            fitView
           >
-            {commentMode ? "✓ Режим комментирования" : "Режим комментирования"}
-          </button>
-        </Panel>
-        <Panel position="top-right" className="toolbar toolbar--right">
-          <button type="button" onClick={openProjectPicker}>
-            Выбрать проект
-          </button>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            Настройки скрипта
-          </button>
-          <button type="button" onClick={handleDownloadPdf}>
-            Скачать в PDF
-          </button>
-        </Panel>
-        <Panel position="bottom-right" className="toolbar toolbar--bottom-right">
-          <button type="button" onClick={handleArrange} title="Выровнять карточки по уровням">
-            Упорядочить
-          </button>
-        </Panel>
-      </ReactFlow>
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={18}
+              size={1}
+              color="rgba(10,10,10,0.28)"
+              bgColor="#f0ede6"
+            />
+            <Controls />
+          </ReactFlow>
+        </div>
+        <aside className="panel panel-hist" aria-label="История изменений">
+          <span className="panel__handle" aria-hidden />
+          <div className="panel__head">
+            <h2>История изменений</h2>
+            <label className="panel__x" htmlFor="hist-open" aria-label="Свернуть историю">
+              ×
+            </label>
+          </div>
+          <div className="history" id="history-slot" data-history-hook="">
+            <HistoryPanel projectId={currentProjectId} onCardBadges={setCardBadges} />
+          </div>
+        </aside>
+        <label className="backdrop backdrop-desc" htmlFor="desc-open" aria-label="Закрыть описание" />
+        <label className="backdrop backdrop-hist" htmlFor="hist-open" aria-label="Закрыть историю" />
       </div>
 
       <TextEditorModal

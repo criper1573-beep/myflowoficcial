@@ -396,6 +396,9 @@ def test_pdf_button_and_comments_remain():
     assert "jsPDF" in app_source
     assert "Скачать в PDF" in app_source
     assert "Режим комментирования" in app_source
+    assert 'id="history-slot"' in app_source
+    assert "data-history-hook" in app_source
+    assert "История изменений" in app_source
     assert "AddCommentModal" in app_source
     assert "ViewCommentModal" in app_source
     assert "/api/generate" not in app_source
@@ -411,4 +414,8 @@ def test_pdf_button_and_comments_remain():
     assert "pendingSave" in storage
     assert not (FRONTEND / "ImproveTextModal.tsx").exists()
     assert "export function useHistory" in (FRONTEND / "useHistory.ts").read_text(encoding="utf-8")
+    history_panel = (FRONTEND / "HistoryPanel.tsx").read_text(encoding="utf-8")
+    assert "useHistory" in history_panel
+    assert "правки не от sonya" in history_panel
+    assert "excludeAuthor" in history_panel
     assert "export const api" in (FRONTEND / "api.ts").read_text(encoding="utf-8")
