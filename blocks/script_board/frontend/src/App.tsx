@@ -196,7 +196,8 @@ function App() {
       const sx = source.position?.x ?? 0;
       const sy = source.position?.y ?? 0;
       const parentCenterX = sx + CARD_LAYOUT.width / 2;
-      const newY = sy + CARD_LAYOUT.height + CARD_LAYOUT.vGap;
+      const parentHeight = source.measured?.height ?? CARD_LAYOUT.height;
+      const newY = sy + parentHeight + CARD_LAYOUT.vGap;
       let newX: number;
       if (childCount === 0) {
         newX = parentCenterX - CARD_LAYOUT.width / 2;

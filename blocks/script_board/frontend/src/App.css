@@ -337,7 +337,9 @@
 }
 
 .script-card {
+  position: relative;
   width: 280px;
+  height: auto;
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid var(--line-strong);
@@ -445,9 +447,9 @@
   line-height: 1.4;
   color: var(--ink);
   margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .script-card__preview--clickable {
