@@ -118,7 +118,7 @@ export default function GoalsPanel({
   };
 
   return (
-    <div className="goals">
+    <div className="goals nowheel">
       <p className="goals__hint">Что нужно узнать у клиента, чтобы закрыть скрипт.</p>
       {error ? <p className="goals__note">{error}</p> : null}
       <ul className="goals__list">

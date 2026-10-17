@@ -516,6 +516,11 @@ def test_pdf_button_and_comments_remain():
     settings = (FRONTEND / "SettingsModal.tsx").read_text(encoding="utf-8")
     storage = (FRONTEND / "projectsStorage.ts").read_text(encoding="utf-8")
 
+    assert "panOnScroll" in app_source
+    assert "PanOnScrollMode.Free" in app_source
+    assert "zoomOnScroll={false}" in app_source
+    assert "zoomOnPinch" in app_source
+    assert 'noWheelClassName="nowheel"' in app_source
     assert "handleDownloadPdf" in app_source
     assert "html2canvas" in app_source
     assert "jsPDF" in app_source

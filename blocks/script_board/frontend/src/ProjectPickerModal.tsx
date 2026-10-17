@@ -29,7 +29,7 @@ export default function ProjectPickerModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay nowheel" onClick={onClose}>
       <div className="modal modal--projects" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <span className="modal__title">Выбрать проект</span>

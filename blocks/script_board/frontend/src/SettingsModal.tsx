@@ -14,7 +14,7 @@ export default function SettingsModal({
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay nowheel" onClick={onClose}>
       <div className="modal modal--settings" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <span className="modal__title">Настройки скрипта</span>

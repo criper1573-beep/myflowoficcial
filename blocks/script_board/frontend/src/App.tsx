@@ -13,6 +13,7 @@ import {
   Controls,
   Background,
   BackgroundVariant,
+  PanOnScrollMode,
 } from "@xyflow/react";
 import { nodeTypes } from "./nodes";
 import { CARD_LAYOUT, computeLayoutPositions } from "./utils";
@@ -571,7 +572,7 @@ function App() {
         </button>
       </header>
       <div className="workspace">
-        <aside className="panel panel-desc" aria-label="Описание проекта">
+        <aside className="panel panel-desc nowheel" aria-label="Описание проекта">
           <span className="panel__handle" aria-hidden />
           <div className="panel__head">
             <h2>Описание проекта</h2>
@@ -603,8 +604,17 @@ function App() {
             onConnect={onConnect}
             onPaneClick={handlePaneClick}
             nodeTypes={nodeTypes as NodeTypes}
+            panOnScroll
+            panOnScrollMode={PanOnScrollMode.Free}
+            zoomOnScroll={false}
+            zoomOnPinch
+            zoomActivationKeyCode={["Meta", "Control"]}
+            minZoom={0.1}
+            maxZoom={4}
+            preventScrolling
             panOnDrag
             panActivationKeyCode="Space"
+            noWheelClassName="nowheel"
             fitView
           >
             <Background
@@ -617,7 +627,7 @@ function App() {
             <Controls />
           </ReactFlow>
         </div>
-        <aside className="panel panel-side" aria-label="История изменений">
+        <aside className="panel panel-side nowheel" aria-label="История изменений">
           <span className="panel__handle" aria-hidden />
           <div className="panel__head">
             <div className="panel__tabs" role="tablist">
@@ -644,7 +654,7 @@ function App() {
               ×
             </button>
           </div>
-          <div className={side.tab === "goals" ? "side-pane" : "side-pane side-pane--hidden"}>
+          <div className={side.tab === "goals" ? "side-pane nowheel" : "side-pane side-pane--hidden nowheel"}>
             <GoalsPanel
               projectId={currentProjectId}
               projectRevision={revision}
@@ -659,7 +669,7 @@ function App() {
             />
           </div>
           <div
-            className={side.tab === "history" ? "history" : "history side-pane--hidden"}
+            className={side.tab === "history" ? "history nowheel" : "history side-pane--hidden nowheel"}
             id="history-slot"
             data-history-hook=""
           >

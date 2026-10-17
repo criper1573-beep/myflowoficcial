@@ -22,7 +22,7 @@ export default function AddCommentModal({ onSave, onClose }: AddCommentModalProp
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} role="presentation">
+    <div className="modal-overlay nowheel" onClick={onClose} role="presentation">
       <div
         className="modal comment-modal comment-modal--add"
         onClick={(e) => e.stopPropagation()}
