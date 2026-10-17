@@ -141,36 +141,3 @@ export function linearizeScript(nodes: GraphPoint[], edges: GraphLink[]): Script
   for (const node of nodes) visit(node.id);
   return lines;
 }
-
-/** Цепочка от корня до карточки — контекст для генерации ответа в этой ветке. */
-export function chainTo(nodeId: string, nodes: GraphPoint[], edges: GraphLink[]): ScriptLine[] {
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  const parents = new Map<string, string[]>();
-  for (const edge of edges) {
-    const list = parents.get(edge.target) ?? [];
-    list.push(edge.source);
-    parents.set(edge.target, list);
-  }
-  const path: string[] = [];
-  const seen = new Set<string>();
-  let current: string | undefined = nodeId;
-  while (current && !seen.has(current)) {
-    seen.add(current);
-    path.push(current);
-    const options = (parents.get(current) ?? []).slice().sort((a, b) => yOf(byId.get(a)) - yOf(byId.get(b)));
-    current = options[0];
-  }
-  path.reverse();
-  return path.flatMap((id) => {
-    const node = byId.get(id);
-    if (!node) return [];
-    return [{ role: cardRole(node), text: readCardText(node.data) }];
-  });
-}
-
-export function formatDialogue(lines: ScriptLine[]): string {
-  return lines
-    .filter((line) => line.text.trim())
-    .map((line) => `${line.role === "client" ? "Клиент" : "Мы"}: ${line.text.trim()}`)
-    .join("\n");
-}

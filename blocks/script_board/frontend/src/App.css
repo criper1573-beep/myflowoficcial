@@ -375,12 +375,6 @@ button { cursor: pointer; }
 }
 .card-btn:hover { background: rgba(10, 10, 10, 0.04); }
 .card-btn:disabled { opacity: 0.4; cursor: default; }
-.card-error {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.3;
-  color: #b02a00;
-}
 
 .react-flow__node { font-family: var(--font); }
 .react-flow__handle {

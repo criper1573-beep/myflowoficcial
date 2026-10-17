@@ -20,7 +20,6 @@ export function ScriptCard({ id, data, type, selected }: NodeProps<Node>) {
   const text = readCardText(data);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const answer = role === "answer";
-  const busy = actions.pendingId === id;
 
   useEffect(() => {
     const area = areaRef.current;
@@ -48,26 +47,6 @@ export function ScriptCard({ id, data, type, selected }: NodeProps<Node>) {
         onChange={(event) => actions.onText(id, event.target.value)}
       />
       <div className="card-actions">
-        {answer ? (
-          <>
-            <button
-              type="button"
-              className="card-btn nodrag nopan"
-              disabled={busy}
-              onClick={() => actions.onGenerate(id)}
-            >
-              {busy ? "…" : "Сгенерировать ответ"}
-            </button>
-            <button
-              type="button"
-              className="card-btn nodrag nopan"
-              disabled={busy || !text.trim()}
-              onClick={() => actions.onImprove(id)}
-            >
-              Улучшить текст
-            </button>
-          </>
-        ) : null}
         <button
           type="button"
           className="card-btn nodrag nopan"
@@ -77,7 +56,6 @@ export function ScriptCard({ id, data, type, selected }: NodeProps<Node>) {
           Копировать
         </button>
       </div>
-      {actions.error?.id === id ? <p className="card-error">{actions.error.message}</p> : null}
       <Handle type="source" position={Position.Right} />
     </article>
   );

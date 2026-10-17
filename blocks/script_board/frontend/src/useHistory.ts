@@ -1,6 +1,13 @@
-import { selectHistory, type HistoryEntry } from "./history";
+export interface HistoryItem {
+  id: string;
+  author: string;
+  action: string;
+  cardId?: string;
+  at: string;
+}
 
-/** Пустой список в сборке, пример — только в `vite` dev. Бэкенд заменит тело хука. */
-export function useHistory(): HistoryEntry[] {
-  return selectHistory(import.meta.env.DEV);
+/** Заглушка. Бэкенд заменит тело хука, сигнатуру оставить. */
+export function useHistory(projectId: string): { items: HistoryItem[]; loading: boolean } {
+  void projectId;
+  return { items: [], loading: false };
 }

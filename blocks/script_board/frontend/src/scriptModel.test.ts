@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   cardRole,
-  chainTo,
   linearizeScript,
   readCardText,
   toStoredRecord,
@@ -45,15 +44,6 @@ describe("scriptModel", () => {
       "От 390 000",
       "Мебель?",
       "Базовая входит",
-      "К 20 мая?",
-      "Успеем",
-    ]);
-  });
-
-  it("собирает цепочку только своей ветки", () => {
-    expect(chainTo("a6", nodes, edges).map((line) => line.text)).toEqual([
-      "Цена?",
-      "От 390 000",
       "К 20 мая?",
       "Успеем",
     ]);

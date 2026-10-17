@@ -10,7 +10,7 @@ export function DescriptionPanel({ open, value, onChange, onClose }: Description
     <aside className={`side-panel side-panel--desc${open ? " is-open" : ""}`} aria-hidden={!open}>
       <span className="sheet-handle" aria-hidden="true" />
       <div className="panel-head">
-        <h2>Описание</h2>
+        <h2>Описание проекта</h2>
         <button type="button" className="panel-close" onClick={onClose} aria-label="Свернуть описание">
           ×
         </button>

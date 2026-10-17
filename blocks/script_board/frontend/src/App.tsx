@@ -1,7 +1,6 @@
 import { ReactFlowProvider, addEdge, useEdgesState, useNodesState, type Connection, type Edge, type Node } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { generateReply, improveText } from "./aiApi";
-import { BoardProvider, type BoardActions, type CardError } from "./BoardContext";
+import { BoardProvider, type BoardActions } from "./BoardContext";
 import { BoardCanvas } from "./BoardCanvas";
 import { readProjectMeta, writeCardMeta, type CardMeta } from "./cardMeta";
 import { DescriptionPanel } from "./DescriptionPanel";
@@ -19,12 +18,9 @@ import {
   type ProjectListItem,
 } from "./projectsStorage";
 import {
-  chainTo,
-  formatDialogue,
   linearizeScript,
   normalizeEdges,
   normalizeNodes,
-  readCardText,
   toStoredRecord,
   writeCardText,
 } from "./scriptModel";
@@ -92,14 +88,12 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const [scriptDescription, setScriptDescription] = useState(initial.scriptDescription);
   const [meta, setMeta] = useState<Record<string, CardMeta>>(() => readProjectMeta(initial.id));
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [cardError, setCardError] = useState<CardError | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const isMobile = useMediaQuery("(max-width: 760px)");
   const [descOpen, setDescOpen] = useState(() => !isMobile);
   const [histOpen, setHistOpen] = useState(() => !isMobile);
-  const history = useHistory();
+  const history = useHistory(currentProjectId);
   const skipSave = useRef(true);
   const wasMobile = useRef(isMobile);
 
@@ -146,7 +140,6 @@ export default function App() {
     setEdges(normalizeEdges(project.edges));
     setScriptDescription(project.scriptDescription);
     setMeta(readProjectMeta(id));
-    setCardError(null);
     setProjects(listProjects());
     setProjectPickerOpen(false);
   }, [setEdges, setNodes]);
@@ -203,8 +196,7 @@ export default function App() {
       current.map((node) => (node.id === id ? { ...node, data: writeCardText(node.data, text) } : node)),
     );
     setMeta(writeCardMeta(currentProjectId, id, { author: "Алексей", edited: true }));
-    if (cardError?.id === id) setCardError(null);
-  }, [cardError?.id, currentProjectId, setNodes]);
+  }, [currentProjectId, setNodes]);
 
   const onCopy = useCallback(async (text: string) => {
     try {
@@ -214,34 +206,6 @@ export default function App() {
       setToast("Не удалось скопировать");
     }
   }, []);
-
-  const runAi = useCallback(async (id: string, mode: "generate" | "improve") => {
-    const node = nodes.find((item) => item.id === id);
-    if (!node) return;
-    const chain = chainTo(id, nodes, edges);
-    const own = readCardText(node.data);
-    const clientText = [...chain].reverse().find((line) => line.role === "client" && line.text.trim())?.text ?? "";
-    const context = formatDialogue(chain);
-    setPendingId(id);
-    setCardError(null);
-    try {
-      const request = {
-        text: mode === "generate" ? clientText || own : own,
-        scriptDescription,
-        context,
-      };
-      const next = mode === "generate" ? await generateReply(request) : await improveText(request);
-      setNodes((current) =>
-        current.map((item) => (item.id === id ? { ...item, data: writeCardText(item.data, next) } : item)),
-      );
-      setMeta(writeCardMeta(currentProjectId, id, { author: "Соня", edited: false }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Не удалось получить ответ";
-      setCardError({ id, message });
-    } finally {
-      setPendingId(null);
-    }
-  }, [currentProjectId, edges, nodes, scriptDescription, setNodes]);
 
   const onExport = useCallback(async () => {
     setExporting(true);
@@ -276,19 +240,11 @@ export default function App() {
 
   const actions = useMemo<BoardActions>(() => ({
     metaFor: (cardId) => meta[cardId] ?? { author: "Соня", edited: false },
-    pendingId,
-    error: cardError,
     onText,
     onCopy: (text) => {
       void onCopy(text);
     },
-    onGenerate: (id) => {
-      void runAi(id, "generate");
-    },
-    onImprove: (id) => {
-      void runAi(id, "improve");
-    },
-  }), [cardError, meta, onCopy, onText, pendingId, runAi]);
+  }), [meta, onCopy, onText]);
 
   const sheetOpen = isMobile && (descOpen || histOpen);
 
@@ -330,7 +286,12 @@ export default function App() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
             />
-            <HistoryPanel open={histOpen} entries={history} onClose={() => setHistOpen(false)} />
+            <HistoryPanel
+              open={histOpen}
+              items={history.items}
+              loading={history.loading}
+              onClose={() => setHistOpen(false)}
+            />
           </div>
           {sheetOpen ? (
             <button
