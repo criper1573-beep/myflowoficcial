@@ -4,31 +4,38 @@ import type { CardData } from "../types";
 
 const firstLine = (t: string) => (t || "").trim().split("\n")[0] || "Без текста";
 
+function authorLabel(data: CardData): string {
+  const value = data["author"];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function OurResponseNode({ id, data }: NodeProps) {
   const d = data as CardData;
   const title = d.title || "Наш ответ";
   const preview = firstLine(d.text);
-  const loading = d.generating ?? false;
-
-  const handleGenerate = () => {
-    if (loading || !d.onGenerate) return;
-    d.onGenerate(id);
-  };
+  const author = authorLabel(d);
 
   return (
-    <div
-      className="script-card script-card--our"
-      style={{ width: 280 }}
-    >
+    <div className="script-card script-card--our">
       <Handle type="target" position={Position.Top} />
-      <input
-        type="text"
-        className="script-card__header-input nodrag"
-        value={title}
-        onChange={(e) => d.onTitleChange?.(id, e.target.value)}
-        onClick={(e) => e.stopPropagation()}
-        placeholder="Название"
-      />
+      <div className="script-card__top">
+        <span className="script-card__kind">
+          <i className="script-card__mark" aria-hidden />
+          <input
+            type="text"
+            className="script-card__header-input nodrag"
+            value={title}
+            onChange={(e) => d.onTitleChange?.(id, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Название"
+          />
+        </span>
+        {author ? (
+          <span className="script-card__who">
+            <span className="script-card__badge">{author}</span>
+          </span>
+        ) : null}
+      </div>
       <div
         className="script-card__preview script-card__preview--clickable nodrag"
         onClick={() => d.onOpenTextEditor?.(id)}
@@ -46,7 +53,7 @@ function OurResponseNode({ id, data }: NodeProps) {
           onClick={() => d.onOpenTextEditor?.(id)}
           title="Редактировать текст"
         >
-          ✎
+          Текст
         </button>
         <button
           type="button"
@@ -54,7 +61,7 @@ function OurResponseNode({ id, data }: NodeProps) {
           onClick={() => d.onCopy?.(id)}
           title="Копировать текст"
         >
-          ⎘
+          Копия
         </button>
         <button
           type="button"
@@ -62,7 +69,7 @@ function OurResponseNode({ id, data }: NodeProps) {
           onClick={() => d.onDuplicate?.(id)}
           title="Дублировать карточку (Alt+D)"
         >
-          ⧉
+          Дубль
         </button>
         <button
           type="button"
@@ -70,16 +77,7 @@ function OurResponseNode({ id, data }: NodeProps) {
           onClick={() => d.onDelete?.(id)}
           title="Удалить карточку (Delete)"
         >
-          🗑
-        </button>
-        <button
-          type="button"
-          className="script-card__btn script-card__btn--generate"
-          onClick={handleGenerate}
-          disabled={loading}
-          title="Сгенерировать ответ по ветке"
-        >
-          {loading ? "…" : "◇"}
+          Удалить
         </button>
       </div>
       <div className="script-card__add-buttons nodrag">

@@ -1,31 +1,32 @@
 # -*- coding: utf-8 -*-
 """FastAPI: веб-сервис доски скриптов диалогов (аналог Miro)."""
-import json
+import base64
 import logging
 import re
-from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 
-from .config import BLOCK_DIR, STATIC_DIR, STORAGE_DIR, PROJECTS_FILE
+from .config import STATIC_DIR, get_storage_dir
+from .store import BoardStore, StoreError
 
 logger = logging.getLogger(__name__)
 
-# Допустимый id проекта (без path traversal)
 PROJECT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
 
 def _load_env():
     """Загрузить .env из корня проекта (и из текущей директории как fallback)."""
     try:
         from dotenv import load_dotenv
+        from .config import BLOCK_DIR
+
         root_env = BLOCK_DIR.parent.parent / ".env"
         if root_env.exists():
             load_dotenv(root_env)
         else:
-            load_dotenv()  # cwd
+            load_dotenv()
     except ImportError:
         pass
 
@@ -35,194 +36,229 @@ _load_env()
 app = FastAPI(
     title="Script Board",
     description="Доска скриптов диалогов с клиентами",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 
-class ChatMessage(BaseModel):
-    role: str = Field(..., description="user или assistant")
-    content: str = Field("", description="Текст сообщения")
+def get_store() -> BoardStore:
+    return BoardStore(get_storage_dir())
 
 
-class GenerateRequest(BaseModel):
-    script_description: str | None = Field(None, description="Описание проекта/скрипта для контекста")
-    messages: list[ChatMessage] = Field(..., description="Диалог: user/assistant")
+def author_from_request(request: Request) -> str:
+    """Автор правки: X-Remote-User от nginx, иначе логин Basic, иначе unknown."""
+    remote = (request.headers.get("x-remote-user") or "").replace("\r", "").replace("\n", "").strip()
+    if remote:
+        return remote[:200]
+    header = request.headers.get("authorization") or ""
+    if header.lower().startswith("basic "):
+        encoded = header.split(" ", 1)[1].strip()
+        try:
+            decoded = base64.b64decode(encoded, validate=False).decode("utf-8", errors="replace")
+        except Exception:
+            decoded = ""
+        user = decoded.split(":", 1)[0].replace("\r", "").replace("\n", "").strip()
+        if user:
+            return user[:200]
+    return "unknown"
 
 
-class ImproveTextRequest(BaseModel):
-    text: str = Field("", description="Текст для улучшения")
-    script_description: str | None = Field(None, description="Контекст скрипта")
+@app.exception_handler(StoreError)
+async def _store_error(_request: Request, exc: StoreError):
+    return JSONResponse(status_code=exc.status, content={"detail": exc.detail()})
 
 
-# --- Хранилище проектов на сервере ---
-
-def _ensure_storage():
-    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    if not PROJECTS_FILE.exists():
-        PROJECTS_FILE.write_text("{}", encoding="utf-8")
+def _check_project_id(project_id: str) -> None:
+    if not PROJECT_ID_RE.match(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project id")
 
 
-def _read_projects() -> dict:
-    _ensure_storage()
+async def _json_object(request: Request) -> dict:
     try:
-        data = PROJECTS_FILE.read_text(encoding="utf-8")
-        return json.loads(data) if data.strip() else {}
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Read projects failed: %s", e)
-        return {}
-
-
-def _write_projects(projects: dict) -> None:
-    _ensure_storage()
-    PROJECTS_FILE.write_text(json.dumps(projects, ensure_ascii=False, indent=2), encoding="utf-8")
+        body = await request.json()
+    except Exception as exc:
+        raise StoreError("bad_request", "Нужен JSON-объект") from exc
+    if not isinstance(body, dict):
+        raise StoreError("bad_request", "Тело должно быть JSON-объектом")
+    return body
 
 
 @app.get("/api/projects")
-def api_list_projects():
-    """Список проектов: { id, name }."""
-    projects = _read_projects()
-    return [
-        {"id": pid, "name": (p.get("name") or "Без названия")}
-        for pid, p in projects.items()
-        if isinstance(p, dict)
-    ]
+def api_list_projects(include_archived: bool = Query(False)):
+    """Список проектов: { id, name, revision }."""
+    return get_store().list_projects(include_archived=include_archived)
 
 
 @app.get("/api/projects/{project_id}")
-def api_get_project(project_id: str):
+def api_get_project(project_id: str, include_archived: bool = Query(False)):
     """Получить проект по id."""
-    if not PROJECT_ID_RE.match(project_id):
-        raise HTTPException(status_code=400, detail="Invalid project id")
-    projects = _read_projects()
-    if project_id not in projects:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return projects[project_id]
+    _check_project_id(project_id)
+    return get_store().get_project(project_id, include_archived=include_archived)
 
 
 @app.put("/api/projects/{project_id}")
-def api_save_project(project_id: str, body: dict):
-    """Сохранить проект (body: name, nodes, edges, scriptDescription, comments)."""
-    if not PROJECT_ID_RE.match(project_id):
-        raise HTTPException(status_code=400, detail="Invalid project id")
-    projects = _read_projects()
-    projects[project_id] = {
-        "name": body.get("name") or "Без названия",
-        "nodes": body.get("nodes", []),
-        "edges": body.get("edges", []),
-        "scriptDescription": body.get("scriptDescription", body.get("script_description", "")),
-        "comments": body.get("comments", []),
-    }
-    _write_projects(projects)
-    return {"success": True}
+async def api_save_project(project_id: str, request: Request):
+    """Сохранить проект целиком. Для существующего нужна актуальная revision."""
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().replace_project(project_id, body, author_from_request(request))
 
 
 @app.post("/api/projects")
-def api_create_project(body: dict):
-    """Создать проект (body: name), вернуть id."""
-    import time
-    project_id = f"project-{int(time.time() * 1000)}"
-    projects = _read_projects()
-    projects[project_id] = {
-        "name": (body.get("name") or "").strip() or "Новый проект",
-        "nodes": body.get("nodes", []),
-        "edges": body.get("edges", []),
-        "scriptDescription": body.get("scriptDescription", body.get("script_description", "")),
-        "comments": body.get("comments", []),
-    }
-    _write_projects(projects)
-    return {"id": project_id}
-
-
-def _get_grs_client():
-    import os
-    from blocks.ai_integrations.grs_ai_client import GRSAIClient
-    key = (os.getenv("GRS_AI_API_KEY") or "").strip()
-    if not key:
-        _load_env()
-        key = (os.getenv("GRS_AI_API_KEY") or "").strip()
-    if not key:
-        raise ValueError(
-            "GRS_AI_API_KEY не задан. Добавьте в файл .env в корне проекта строку: GRS_AI_API_KEY=ваш_ключ"
-        )
-    return GRSAIClient()
-
-
-@app.post("/api/generate")
-def api_generate(body: GenerateRequest):
-    """
-    Сгенерировать ответ по контексту диалога (GRS AI).
-    script_description добавляется как system-сообщение при наличии.
-    """
-    messages = []
-    if body.script_description and body.script_description.strip():
-        messages.append({"role": "system", "content": "Контекст скрипта:\n" + body.script_description.strip()})
-    for m in body.messages:
-        if m.role not in ("user", "assistant"):
-            continue
-        messages.append({"role": m.role, "content": m.content or ""})
-    if not messages or all(m.get("role") == "system" for m in messages):
-        return {"success": False, "error": "Нужен хотя бы один user или assistant message"}
-    try:
-        client = _get_grs_client()
-        text = client.chat(messages=messages)
-        return {"success": True, "text": text}
-    except Exception as e:
-        logger.exception("Generate failed: %s", e)
-        return {"success": False, "error": str(e)}
-
-
-@app.post("/api/improve-text")
-def api_improve_text(body: ImproveTextRequest):
-    """
-    Улучшить/доработать текст карточки через GRS AI.
-    Возвращает только улучшенный текст.
-    """
-    system = (
-        "Ты редактор скриптов диалогов с клиентами. "
-        "Улучши и доработай следующий текст: сделай его яснее, вежливее и уместнее для диалога. "
-        "Сохрани смысл и тон. Верни только улучшенный текст, без пояснений и кавычек."
+async def api_create_project(request: Request):
+    """Создать проект, вернуть id и revision."""
+    body = await _json_object(request)
+    description = body.get("scriptDescription", body.get("script_description", ""))
+    goals = body.get("goals") or []
+    if not isinstance(goals, list):
+        raise StoreError("bad_request", "goals должен быть массивом")
+    return get_store().create_project(
+        name=body.get("name") or "",
+        script_description=description if isinstance(description, str) else "",
+        nodes=body.get("nodes") or [],
+        edges=body.get("edges") or [],
+        comments=body.get("comments") or [],
+        goals=goals,
+        author=author_from_request(request),
     )
-    if body.script_description and body.script_description.strip():
-        system += "\n\nКонтекст скрипта:\n" + body.script_description.strip()
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": body.text.strip() or "(пустой текст — предложи короткий вариант реплики для скрипта)"},
-    ]
-    try:
-        client = _get_grs_client()
-        text = client.chat(messages=messages)
-        return {"success": True, "text": text.strip()}
-    except Exception as e:
-        logger.exception("Improve text failed: %s", e)
-        return {"success": False, "error": str(e)}
 
 
-@app.get("/api/check-grs")
-def api_check_grs():
-    """
-    Проверить, задан ли GRS_AI_API_KEY (для отладки).
-    Возвращает configured: true/false, без показа ключа.
-    """
-    import os
-    key = (os.getenv("GRS_AI_API_KEY") or "").strip()
-    if not key:
-        _load_env()
-        key = (os.getenv("GRS_AI_API_KEY") or "").strip()
-    return {
-        "configured": bool(key),
-        "hint": "Задайте GRS_AI_API_KEY в файле .env в корне проекта" if not key else None,
-    }
+@app.patch("/api/projects/{project_id}")
+async def api_update_project(project_id: str, request: Request):
+    """Переименовать проект или обновить scriptDescription."""
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().update_meta(
+        project_id,
+        revision=body.get("revision"),
+        author=author_from_request(request),
+        name=body.get("name") if "name" in body else None,
+        script_description=body.get("scriptDescription") if "scriptDescription" in body else None,
+    )
 
 
-@app.get("/api/models")
-def api_models():
-    """Список доступных моделей GRS AI для выбора на фронте."""
-    try:
-        from blocks.ai_integrations.grs_ai_client import GRSAIClient
-        models = GRSAIClient.get_available_models()
-        return {"success": True, "models": models}
-    except Exception as e:
-        return {"success": False, "error": str(e), "models": {}}
+@app.delete("/api/projects/{project_id}")
+def api_archive_project(project_id: str, request: Request, revision: int = Query(...)):
+    """Мягкое удаление: проект уходит в архив и пропадает из списка."""
+    _check_project_id(project_id)
+    return get_store().archive_project(project_id, revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/restore")
+async def api_restore_project(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().restore_project(project_id, body.get("revision"), author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/cards")
+async def api_create_card(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().create_card(project_id, body, author_from_request(request))
+
+
+@app.patch("/api/projects/{project_id}/cards/{card_id}")
+async def api_update_card(project_id: str, card_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().update_card(project_id, card_id, body, author_from_request(request))
+
+
+@app.delete("/api/projects/{project_id}/cards/{card_id}")
+def api_delete_card(project_id: str, card_id: str, request: Request, revision: int = Query(...)):
+    _check_project_id(project_id)
+    return get_store().delete_card(project_id, card_id, revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/edges")
+async def api_create_edge(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().create_edge(project_id, body, author_from_request(request))
+
+
+@app.delete("/api/projects/{project_id}/edges/{edge_id}")
+def api_delete_edge(
+    project_id: str,
+    edge_id: str,
+    request: Request,
+    project_revision: int = Query(..., alias="projectRevision"),
+):
+    _check_project_id(project_id)
+    return get_store().delete_edge(project_id, edge_id, project_revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/comments")
+async def api_create_comment(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().create_comment(project_id, body, author_from_request(request))
+
+
+@app.patch("/api/projects/{project_id}/comments/{comment_id}")
+async def api_update_comment(project_id: str, comment_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().update_comment(project_id, comment_id, body, author_from_request(request))
+
+
+@app.delete("/api/projects/{project_id}/comments/{comment_id}")
+def api_delete_comment(
+    project_id: str,
+    comment_id: str,
+    request: Request,
+    project_revision: int = Query(..., alias="projectRevision"),
+):
+    _check_project_id(project_id)
+    return get_store().delete_comment(project_id, comment_id, project_revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/goals")
+async def api_create_goal(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().create_goal(project_id, body, author_from_request(request))
+
+
+@app.patch("/api/projects/{project_id}/goals/{goal_id}")
+async def api_update_goal(project_id: str, goal_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().update_goal(project_id, goal_id, body, author_from_request(request))
+
+
+@app.delete("/api/projects/{project_id}/goals/{goal_id}")
+def api_delete_goal(project_id: str, goal_id: str, request: Request, revision: int = Query(...)):
+    _check_project_id(project_id)
+    return get_store().delete_goal(project_id, goal_id, revision, author_from_request(request))
+
+
+@app.post("/api/projects/{project_id}/goals/reorder")
+async def api_reorder_goals(project_id: str, request: Request):
+    _check_project_id(project_id)
+    body = await _json_object(request)
+    return get_store().reorder_goals(project_id, body, author_from_request(request))
+
+
+@app.get("/api/projects/{project_id}/history")
+def api_project_history(
+    project_id: str,
+    since: str | None = Query(None),
+    author: str | None = Query(None),
+    exclude_author: str | None = Query(None),
+):
+    """История правок. exclude_author=sonya&since=... — что изменилось после визита Сони."""
+    _check_project_id(project_id)
+    return get_store().get_history(project_id, since=since, author=author, exclude_author=exclude_author)
+
+
+@app.api_route(
+    "/api/{full_path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def api_unknown(full_path: str):
+    """Снятые и неизвестные методы API, без перехвата SPA."""
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 # Статика SPA

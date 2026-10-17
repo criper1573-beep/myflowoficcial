@@ -1,11 +1,59 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600&family=Onest:wght@400;600&display=swap");
+
+:root {
+  --ink: #0a0a0a;
+  --paper: #f0ede6;
+  --card: #fff;
+  --orange: #ff3c00;
+  --muted: #5c5c5c;
+  --line: rgba(10, 10, 10, 0.12);
+  --line-strong: rgba(10, 10, 10, 0.22);
+  --font: "Onest", "Segoe UI", sans-serif;
+  --ui: "Inter Tight", "Onest", "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
 }
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-}
+
+html,
+body,
 #root {
-  width: 100vw;
-  height: 100vh;
+  margin: 0;
+  height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--orange);
+  color: var(--ink);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
 }

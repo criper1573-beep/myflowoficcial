@@ -17,14 +17,14 @@ export default function SettingsModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--settings" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span>Настройки скрипта</span>
-          <button type="button" className="modal__close" onClick={onClose}>
+          <span className="modal__title">Настройки скрипта</span>
+          <button type="button" className="modal__close" onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </div>
         <div className="modal__body">
           <label className="modal__label">
-            Описание проекта / скрипта (используется как контекст для генерации)
+            Описание проекта / скрипта (контекст для Сони)
           </label>
           <textarea
             className="modal__textarea"

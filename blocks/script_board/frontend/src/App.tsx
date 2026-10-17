@@ -11,11 +11,15 @@ import {
   type NodeTypes,
   type NodeChange,
   Controls,
-  Panel,
+  Background,
+  BackgroundVariant,
 } from "@xyflow/react";
 import { nodeTypes } from "./nodes";
-import { getAncestorIds, CARD_LAYOUT, computeLayoutPositions } from "./utils";
-import type { CardData } from "./types";
+import { CARD_LAYOUT, computeLayoutPositions } from "./utils";
+import type { CardData, Goal } from "./types";
+import GoalsPanel from "./GoalsPanel";
+import HistoryPanel from "./HistoryPanel";
+import { readSidePanel, writeSidePanel, type SideTab } from "./sidePanelStorage";
 import TextEditorModal from "./TextEditorModal";
 import SettingsModal from "./SettingsModal";
 import ProjectPickerModal from "./ProjectPickerModal";
@@ -26,9 +30,9 @@ import {
   setCurrentProjectId,
   listProjects,
   loadProject,
-  saveProject,
   createProject,
 } from "./projectsStorage";
+import { useAutosave } from "./useAutosave";
 import type { CommentItem } from "./projectsStorage";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -36,21 +40,6 @@ import "@xyflow/react/dist/style.css";
 import "./App.css";
 
 type CardNode = Node<CardData>;
-
-function buildMessages(
-  nodeIds: string[],
-  nodes: CardNode[],
-): { role: "user" | "assistant"; content: string }[] {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const out: { role: "user" | "assistant"; content: string }[] = [];
-  for (const id of nodeIds) {
-    const n = byId.get(id);
-    if (!n) continue;
-    const role = n.type === "client" ? "user" : "assistant";
-    out.push({ role, content: (n.data?.text as string) ?? "" });
-  }
-  return out;
-}
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -64,58 +53,72 @@ function App() {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectsList, setProjectsList] = useState<{ id: string; name: string }[]>([]);
   const [comments, setComments] = useState<CommentItem[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [revision, setRevision] = useState(0);
+  const [side, setSide] = useState(readSidePanel);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [cardBadges, setCardBadges] = useState<Record<string, string>>({});
   const [commentMode, setCommentMode] = useState(false);
   const [addCommentPosition, setAddCommentPosition] = useState<{ x: number; y: number } | null>(null);
   const [viewCommentId, setViewCommentId] = useState<string | null>(null);
   const { screenToFlowPosition } = useReactFlow();
 
   useEffect(() => {
+    writeSidePanel(side);
+  }, [side]);
+
+  const showSide = (tab: SideTab) => {
+    setSide((current) => (current.open && current.tab === tab ? { open: false, tab } : { open: true, tab }));
+  };
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      const list = await listProjects();
-      if (cancelled) return;
-      let id = getCurrentProjectId();
-      const exists = id && list.some((p) => p.id === id);
-      if (!id || !exists) {
-        if (list.length > 0) {
-          id = list[0].id;
-          setCurrentProjectId(id);
-        } else {
-          id = await createProject("Проект 1");
-          setCurrentProjectId(id);
-          setCurrentProjectIdState(id);
-          setNodes([]);
-          setEdges([]);
-          setScriptDescription("");
-          setProjectName("Проект 1");
-          setLoading(false);
-          return;
+      try {
+        const list = await listProjects();
+        if (cancelled) return;
+        let id = getCurrentProjectId();
+        const exists = id && list.some((p) => p.id === id);
+        if (!id || !exists) {
+          if (list.length > 0) {
+            id = list[0].id;
+            setCurrentProjectId(id);
+          } else {
+            const created = await createProject("Проект 1");
+            if (cancelled) return;
+            setCurrentProjectId(created.id);
+            setCurrentProjectIdState(created.id);
+            setRevision(created.revision);
+            setNodes([]);
+            setEdges([]);
+            setScriptDescription("");
+            setGoals([]);
+            setProjectName("Проект 1");
+            setLoading(false);
+            return;
+          }
         }
+        setCurrentProjectIdState(id);
+        const loaded = await loadProject(id);
+        if (cancelled) return;
+        if (loaded) {
+          setNodes(loaded.nodes);
+          setEdges(loaded.edges);
+          setScriptDescription(loaded.scriptDescription);
+          setProjectName(loaded.name);
+          setComments(loaded.comments ?? []);
+          setGoals(loaded.goals ?? []);
+          setRevision(loaded.revision);
+        }
+        setLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+        setSyncMessage(error instanceof Error ? error.message : "Не удалось загрузить проекты");
+        setLoading(false);
       }
-      setCurrentProjectIdState(id);
-      const loaded = await loadProject(id);
-      if (cancelled) return;
-      if (loaded) {
-        setNodes(loaded.nodes);
-        setEdges(loaded.edges);
-        setScriptDescription(loaded.scriptDescription);
-        setProjectName(loaded.name);
-        setComments(loaded.comments ?? []);
-      }
-      setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!currentProjectId || loading) return;
-    const t = setTimeout(
-      () =>
-        saveProject(currentProjectId, projectName || "Без названия", nodes, edges, scriptDescription, comments),
-      400,
-    );
-    return () => clearTimeout(t);
-  }, [currentProjectId, projectName, nodes, edges, scriptDescription, comments, loading]);
 
   const handleSelectProject = useCallback(
     async (id: string) => {
@@ -128,6 +131,8 @@ function App() {
       setScriptDescription(loaded.scriptDescription);
       setProjectName(loaded.name);
       setComments(loaded.comments ?? []);
+      setGoals(loaded.goals ?? []);
+      setRevision(loaded.revision);
       setProjectPickerOpen(false);
     },
     [setNodes, setEdges],
@@ -135,14 +140,16 @@ function App() {
 
   const handleCreateProject = useCallback(
     async (name: string) => {
-      const id = await createProject(name);
-      setCurrentProjectId(id);
-      setCurrentProjectIdState(id);
+      const created = await createProject(name);
+      setCurrentProjectId(created.id);
+      setCurrentProjectIdState(created.id);
+      setRevision(created.revision);
       setNodes([]);
       setEdges([]);
       setScriptDescription("");
       setProjectName(name.trim() || "Новый проект");
       setComments([]);
+      setGoals([]);
       setProjectPickerOpen(false);
     },
     [setNodes, setEdges],
@@ -271,49 +278,6 @@ function App() {
     },
     [nodes],
   );
-  const handleGenerate = useCallback(
-    async (nodeId: string) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, generating: true } } : n,
-        ),
-      );
-      const ancestorIds = getAncestorIds(nodeId, nodes as Node[], edges);
-      const orderedIds = [...ancestorIds, nodeId];
-      const messages = buildMessages(orderedIds, nodes);
-      try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            script_description: scriptDescription || null,
-            messages,
-          }),
-        });
-        const json = await res.json();
-        setNodes((nds) =>
-          nds.map((n) => {
-            if (n.id !== nodeId) return n;
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                text: json.success ? json.text ?? "" : (n.data?.text as string) ?? "",
-                generating: false,
-              },
-            };
-          }),
-        );
-      } catch {
-        setNodes((nds) =>
-          nds.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, generating: false } } : n,
-          ),
-        );
-      }
-    },
-    [nodes, edges, scriptDescription, setNodes],
-  );
 
   const nodesWithCallbacks = useMemo(
     () =>
@@ -327,10 +291,10 @@ function App() {
           onDuplicate: handleDuplicate,
           onAddChild: handleAddChild,
           onDelete: handleDelete,
-          onGenerate: n.type === "our_response" ? handleGenerate : undefined,
+          author: cardBadges[n.id],
         } as CardData,
       })),
-    [nodes, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete, handleGenerate],
+    [nodes, cardBadges, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete],
   );
 
   const commentNodes: Node[] = useMemo(
@@ -481,6 +445,42 @@ function App() {
     }
   }, []);
 
+  const reloadFromServer = useCallback(async () => {
+    if (!currentProjectId) return;
+    const loaded = await loadProject(currentProjectId);
+    if (!loaded) return;
+    setNodes(loaded.nodes);
+    setEdges(loaded.edges);
+    setScriptDescription(loaded.scriptDescription);
+    setProjectName(loaded.name);
+    setComments(loaded.comments ?? []);
+    setGoals(loaded.goals ?? []);
+    setRevision(loaded.revision);
+  }, [currentProjectId, setNodes, setEdges]);
+
+  useAutosave({
+    enabled: !loading && !!currentProjectId,
+    snapshot: {
+      projectId: currentProjectId,
+      revision,
+      name: projectName || "Без названия",
+      nodes,
+      edges,
+      scriptDescription,
+      comments,
+    },
+    onRevision: setRevision,
+    onConflict: async () => {
+      await reloadFromServer();
+      setSyncMessage("Проект изменился на сервере. Показана актуальная версия, это сохранение отменено.");
+    },
+    onRemote: async () => {
+      await reloadFromServer();
+    },
+    onError: setSyncMessage,
+    onClearError: () => setSyncMessage(null),
+  });
+
   if (loading) {
     return (
       <div className="app app--loading">
@@ -490,60 +490,189 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <div ref={flowContainerRef} className="app__flow-wrap">
-      <ReactFlow
-        nodes={displayNodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={handlePaneClick}
-        nodeTypes={nodeTypes as NodeTypes}
-        panOnDrag
-        panActivationKeyCode="Space"
-        fitView
-      >
-        <Controls />
-        <Panel position="top-left" className="toolbar">
-          <button type="button" onClick={() => addNode("client")}>
-            + Сообщение клиента
-          </button>
-          <button type="button" onClick={() => addNode("our_response")}>
-            + Наш ответ
-          </button>
-          <button
-            type="button"
-            className={commentMode ? "toolbar__btn--active" : ""}
-            onClick={() => setCommentMode((v) => !v)}
-            title="Режим комментирования: клик по полю создаёт комментарий"
+    <div className={side.open ? "app app--side-open" : "app"}>
+      <input className="panel-toggle" type="checkbox" id="desc-open" defaultChecked />
+      <header className="toolbar">
+        <div className="brand">
+          <span className="logo">
+            FL<span className="logo-o">O</span>W
+          </span>
+          <span className="brand-name">Доска скриптов</span>
+        </div>
+        <span className="sep" />
+        <button
+          type="button"
+          className="tool tool-project"
+          onClick={openProjectPicker}
+          title="Выбрать проект"
+        >
+          <span className="kicker">Выбрать проект</span>
+          <span className="pname">{projectName || "Без названия"}</span>
+        </button>
+        <span className="sep" />
+        <button
+          type="button"
+          className="tool"
+          onClick={() => addNode("client")}
+          title="Добавить сообщение клиента"
+        >
+          + Клиент
+        </button>
+        <button
+          type="button"
+          className="tool"
+          onClick={() => addNode("our_response")}
+          title="Добавить наш ответ"
+        >
+          + Ответ
+        </button>
+        <button
+          type="button"
+          className={commentMode ? "tool tool--active" : "tool"}
+          onClick={() => setCommentMode((v) => !v)}
+          title="Режим комментирования: клик по полю создаёт комментарий"
+          aria-pressed={commentMode}
+        >
+          {commentMode ? "✓ Комментарии" : "Комментарии"}
+        </button>
+        <button
+          type="button"
+          className="tool"
+          onClick={handleArrange}
+          title="Выровнять карточки по уровням"
+        >
+          Упорядочить
+        </button>
+        <button type="button" className="tool" onClick={handleDownloadPdf} title="Скачать в PDF">
+          PDF
+        </button>
+        <span className="spacer" />
+        <label className="tool tool-desc" htmlFor="desc-open">
+          Описание
+        </label>
+        <button type="button" className="tool" onClick={() => setSettingsOpen(true)} title="Настройки скрипта">
+          Настройки
+        </button>
+        <button
+          type="button"
+          className={side.open && side.tab === "goals" ? "tool tool-side tool--active" : "tool tool-side"}
+          onClick={() => showSide("goals")}
+          aria-pressed={side.open && side.tab === "goals"}
+        >
+          Цели
+        </button>
+        <button
+          type="button"
+          className={side.open && side.tab === "history" ? "tool tool-side tool--active" : "tool tool-side"}
+          onClick={() => showSide("history")}
+          aria-pressed={side.open && side.tab === "history"}
+        >
+          История
+        </button>
+      </header>
+      <div className="workspace">
+        <aside className="panel panel-desc" aria-label="Описание проекта">
+          <span className="panel__handle" aria-hidden />
+          <div className="panel__head">
+            <h2>Описание проекта</h2>
+            <label className="panel__x" htmlFor="desc-open" aria-label="Свернуть описание">
+              ×
+            </label>
+          </div>
+          <textarea
+            className="panel__desc"
+            value={scriptDescription}
+            onChange={(e) => setScriptDescription(e.target.value)}
+            placeholder="Описание проекта / скрипта"
+          />
+        </aside>
+        <div
+          ref={flowContainerRef}
+          className={commentMode ? "app__flow-wrap app__flow-wrap--comment" : "app__flow-wrap"}
+        >
+          {syncMessage && (
+            <div className="app__sync" role="status">
+              {syncMessage}
+            </div>
+          )}
+          <ReactFlow
+            nodes={displayNodes}
+            edges={edges}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onPaneClick={handlePaneClick}
+            nodeTypes={nodeTypes as NodeTypes}
+            panOnDrag
+            panActivationKeyCode="Space"
+            fitView
           >
-            {commentMode ? "✓ Режим комментирования" : "Режим комментирования"}
-          </button>
-        </Panel>
-        <Panel position="top-right" className="toolbar toolbar--right">
-          <button type="button" onClick={openProjectPicker}>
-            Выбрать проект
-          </button>
-          <button type="button" onClick={() => setSettingsOpen(true)}>
-            Настройки скрипта
-          </button>
-          <button type="button" onClick={handleDownloadPdf}>
-            Скачать в PDF
-          </button>
-        </Panel>
-        <Panel position="bottom-right" className="toolbar toolbar--bottom-right">
-          <button type="button" onClick={handleArrange} title="Выровнять карточки по уровням">
-            Упорядочить
-          </button>
-        </Panel>
-      </ReactFlow>
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={18}
+              size={1}
+              color="rgba(10,10,10,0.28)"
+              bgColor="#f0ede6"
+            />
+            <Controls />
+          </ReactFlow>
+        </div>
+        <aside className="panel panel-side" aria-label="История изменений">
+          <span className="panel__handle" aria-hidden />
+          <div className="panel__head">
+            <div className="panel__tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                className={side.tab === "goals" ? "panel__tab panel__tab--active" : "panel__tab"}
+                aria-selected={side.tab === "goals"}
+                onClick={() => setSide({ open: true, tab: "goals" })}
+              >
+                Цели
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={side.tab === "history" ? "panel__tab panel__tab--active" : "panel__tab"}
+                aria-selected={side.tab === "history"}
+                onClick={() => setSide({ open: true, tab: "history" })}
+              >
+                История
+              </button>
+            </div>
+            <button type="button" className="panel__x" onClick={() => setSide((current) => ({ open: false, tab: current.tab }))} aria-label="Свернуть панель">
+              ×
+            </button>
+          </div>
+          <div className={side.tab === "goals" ? "side-pane" : "side-pane side-pane--hidden"}>
+            <GoalsPanel
+              projectId={currentProjectId}
+              projectRevision={revision}
+              goals={goals}
+              onChange={(nextGoals, nextRevision) => {
+                setGoals(nextGoals);
+                setRevision(nextRevision);
+              }}
+              onConflict={() => {
+                void reloadFromServer();
+              }}
+            />
+          </div>
+          <div
+            className={side.tab === "history" ? "history" : "history side-pane--hidden"}
+            id="history-slot"
+            data-history-hook=""
+          >
+            <HistoryPanel projectId={currentProjectId} onCardBadges={setCardBadges} />
+          </div>
+        </aside>
+        <label className="backdrop backdrop-desc" htmlFor="desc-open" aria-label="Закрыть описание" />
+        <button type="button" className="backdrop backdrop-side" aria-label="Закрыть панель" onClick={() => setSide((current) => ({ open: false, tab: current.tab }))} />
       </div>
 
       <TextEditorModal
         nodeId={editingNodeId}
         nodes={nodes}
-        scriptDescription={scriptDescription}
         onSave={handleSaveText}
         onClose={() => setEditingNodeId(null)}
       />

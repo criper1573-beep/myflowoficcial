@@ -32,8 +32,8 @@ export default function ProjectPickerModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--projects" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
-          <span>Выбрать проект</span>
-          <button type="button" className="modal__close" onClick={onClose}>
+          <span className="modal__title">Выбрать проект</span>
+          <button type="button" className="modal__close" onClick={onClose} aria-label="Закрыть">
             ×
           </button>
         </div>

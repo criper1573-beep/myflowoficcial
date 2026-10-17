@@ -388,6 +388,16 @@ GRS_IMAGE_WEB_PORT=8765
 
 ---
 
+### 9b3. Доска скриптов (blocks/script_board)
+
+**Назначение:** Доска скриптов диалогов на script.flowcabinet.ru. Скрипт пишет бот через HTTP API. Ключи GRS AI этому блоку не нужны.
+
+**Ключи:** секретов нет. `SCRIPT_BOARD_HOST` (по умолчанию `127.0.0.1`), `SCRIPT_BOARD_PORT` (по умолчанию `8780`), необязательный `SCRIPT_BOARD_STORAGE` — каталог `projects.json` и истории.
+
+**Используется в:** `blocks/script_board/__main__.py`, `blocks/script_board/config.py`. Деплой: `docs/guides/DEPLOY_SCRIPT_BOARD.md`. Контракт бота: `blocks/script_board/API.md`.
+
+---
+
 ### 9c2. Zakazy Forwarder (blocks/zakazy_forwarder)
 
 **Назначение:** Чтение чата [t.me/zakazyff](https://t.me/zakazyff) от имени пользователя (Telethon) и пересылка сообщений с фразой «Новый Заказ на упаковку и отгрузку» в отдельный чат.
