@@ -31,7 +31,7 @@ export default function TextEditorModal({
   if (!nodeId || !node) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay nowheel" onClick={onClose}>
       <div className="modal modal--text" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <span>Редактировать карточку</span>

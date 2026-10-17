@@ -5,6 +5,7 @@
   color: var(--ink);
   display: flex;
   flex-direction: column;
+  overscroll-behavior: none;
 }
 
 .app--loading {
@@ -25,10 +26,13 @@
   min-height: 0;
   position: relative;
   background: var(--paper);
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .app .react-flow {
   background: var(--paper);
+  overscroll-behavior: none;
   --xy-background-color: #f0ede6;
   --xy-background-pattern-color: rgba(10, 10, 10, 0.28);
   --xy-edge-stroke: rgba(10, 10, 10, 0.72);
@@ -316,6 +320,7 @@
   overflow: auto;
   flex: 1;
   min-height: 0;
+  overscroll-behavior: contain;
 }
 
 .history:empty::before {
@@ -1193,6 +1198,7 @@
   overflow: auto;
   flex: 1;
   min-height: 0;
+  overscroll-behavior: contain;
 }
 
 .goals__item {

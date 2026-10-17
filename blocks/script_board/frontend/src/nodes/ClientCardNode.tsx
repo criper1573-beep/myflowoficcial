@@ -23,7 +23,7 @@ function ClientCardNode({ id, data }: NodeProps) {
           <i className="script-card__mark" aria-hidden />
           <input
             type="text"
-            className="script-card__header-input nodrag"
+            className="script-card__header-input nodrag nowheel"
             value={title}
             onChange={(e) => d.onTitleChange?.(id, e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -37,7 +37,7 @@ function ClientCardNode({ id, data }: NodeProps) {
         ) : null}
       </div>
       <div
-        className="script-card__preview script-card__preview--clickable nodrag"
+        className="script-card__preview script-card__preview--clickable nodrag nowheel"
         onClick={() => d.onOpenTextEditor?.(id)}
         role="button"
         tabIndex={0}

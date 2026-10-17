@@ -11,7 +11,7 @@ export default function ViewCommentModal({ text, onResolve, onClose }: ViewComme
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} role="presentation">
+    <div className="modal-overlay nowheel" onClick={onClose} role="presentation">
       <div
         className="modal comment-modal comment-modal--view"
         onClick={(e) => e.stopPropagation()}
