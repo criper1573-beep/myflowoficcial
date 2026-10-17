@@ -24,7 +24,7 @@ export default function SettingsModal({
         </div>
         <div className="modal__body">
           <label className="modal__label">
-            Описание проекта / скрипта (используется как контекст для генерации)
+            Описание проекта / скрипта (контекст для Сони)
           </label>
           <textarea
             className="modal__textarea"

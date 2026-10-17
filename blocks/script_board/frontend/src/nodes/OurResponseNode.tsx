@@ -8,12 +8,6 @@ function OurResponseNode({ id, data }: NodeProps) {
   const d = data as CardData;
   const title = d.title || "Наш ответ";
   const preview = firstLine(d.text);
-  const loading = d.generating ?? false;
-
-  const handleGenerate = () => {
-    if (loading || !d.onGenerate) return;
-    d.onGenerate(id);
-  };
 
   return (
     <div
@@ -71,15 +65,6 @@ function OurResponseNode({ id, data }: NodeProps) {
           title="Удалить карточку (Delete)"
         >
           🗑
-        </button>
-        <button
-          type="button"
-          className="script-card__btn script-card__btn--generate"
-          onClick={handleGenerate}
-          disabled={loading}
-          title="Сгенерировать ответ по ветке"
-        >
-          {loading ? "…" : "◇"}
         </button>
       </div>
       <div className="script-card__add-buttons nodrag">

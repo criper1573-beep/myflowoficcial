@@ -14,7 +14,7 @@ import {
   Panel,
 } from "@xyflow/react";
 import { nodeTypes } from "./nodes";
-import { getAncestorIds, CARD_LAYOUT, computeLayoutPositions } from "./utils";
+import { CARD_LAYOUT, computeLayoutPositions } from "./utils";
 import type { CardData } from "./types";
 import TextEditorModal from "./TextEditorModal";
 import SettingsModal from "./SettingsModal";
@@ -26,9 +26,9 @@ import {
   setCurrentProjectId,
   listProjects,
   loadProject,
-  saveProject,
   createProject,
 } from "./projectsStorage";
+import { useAutosave } from "./useAutosave";
 import type { CommentItem } from "./projectsStorage";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -36,21 +36,6 @@ import "@xyflow/react/dist/style.css";
 import "./App.css";
 
 type CardNode = Node<CardData>;
-
-function buildMessages(
-  nodeIds: string[],
-  nodes: CardNode[],
-): { role: "user" | "assistant"; content: string }[] {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const out: { role: "user" | "assistant"; content: string }[] = [];
-  for (const id of nodeIds) {
-    const n = byId.get(id);
-    if (!n) continue;
-    const role = n.type === "client" ? "user" : "assistant";
-    out.push({ role, content: (n.data?.text as string) ?? "" });
-  }
-  return out;
-}
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -64,6 +49,8 @@ function App() {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectsList, setProjectsList] = useState<{ id: string; name: string }[]>([]);
   const [comments, setComments] = useState<CommentItem[]>([]);
+  const [revision, setRevision] = useState(0);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [commentMode, setCommentMode] = useState(false);
   const [addCommentPosition, setAddCommentPosition] = useState<{ x: number; y: number } | null>(null);
   const [viewCommentId, setViewCommentId] = useState<string | null>(null);
@@ -72,50 +59,49 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const list = await listProjects();
-      if (cancelled) return;
-      let id = getCurrentProjectId();
-      const exists = id && list.some((p) => p.id === id);
-      if (!id || !exists) {
-        if (list.length > 0) {
-          id = list[0].id;
-          setCurrentProjectId(id);
-        } else {
-          id = await createProject("Проект 1");
-          setCurrentProjectId(id);
-          setCurrentProjectIdState(id);
-          setNodes([]);
-          setEdges([]);
-          setScriptDescription("");
-          setProjectName("Проект 1");
-          setLoading(false);
-          return;
+      try {
+        const list = await listProjects();
+        if (cancelled) return;
+        let id = getCurrentProjectId();
+        const exists = id && list.some((p) => p.id === id);
+        if (!id || !exists) {
+          if (list.length > 0) {
+            id = list[0].id;
+            setCurrentProjectId(id);
+          } else {
+            const created = await createProject("Проект 1");
+            if (cancelled) return;
+            setCurrentProjectId(created.id);
+            setCurrentProjectIdState(created.id);
+            setRevision(created.revision);
+            setNodes([]);
+            setEdges([]);
+            setScriptDescription("");
+            setProjectName("Проект 1");
+            setLoading(false);
+            return;
+          }
         }
+        setCurrentProjectIdState(id);
+        const loaded = await loadProject(id);
+        if (cancelled) return;
+        if (loaded) {
+          setNodes(loaded.nodes);
+          setEdges(loaded.edges);
+          setScriptDescription(loaded.scriptDescription);
+          setProjectName(loaded.name);
+          setComments(loaded.comments ?? []);
+          setRevision(loaded.revision);
+        }
+        setLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+        setSyncMessage(error instanceof Error ? error.message : "Не удалось загрузить проекты");
+        setLoading(false);
       }
-      setCurrentProjectIdState(id);
-      const loaded = await loadProject(id);
-      if (cancelled) return;
-      if (loaded) {
-        setNodes(loaded.nodes);
-        setEdges(loaded.edges);
-        setScriptDescription(loaded.scriptDescription);
-        setProjectName(loaded.name);
-        setComments(loaded.comments ?? []);
-      }
-      setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!currentProjectId || loading) return;
-    const t = setTimeout(
-      () =>
-        saveProject(currentProjectId, projectName || "Без названия", nodes, edges, scriptDescription, comments),
-      400,
-    );
-    return () => clearTimeout(t);
-  }, [currentProjectId, projectName, nodes, edges, scriptDescription, comments, loading]);
 
   const handleSelectProject = useCallback(
     async (id: string) => {
@@ -128,6 +114,7 @@ function App() {
       setScriptDescription(loaded.scriptDescription);
       setProjectName(loaded.name);
       setComments(loaded.comments ?? []);
+      setRevision(loaded.revision);
       setProjectPickerOpen(false);
     },
     [setNodes, setEdges],
@@ -135,9 +122,10 @@ function App() {
 
   const handleCreateProject = useCallback(
     async (name: string) => {
-      const id = await createProject(name);
-      setCurrentProjectId(id);
-      setCurrentProjectIdState(id);
+      const created = await createProject(name);
+      setCurrentProjectId(created.id);
+      setCurrentProjectIdState(created.id);
+      setRevision(created.revision);
       setNodes([]);
       setEdges([]);
       setScriptDescription("");
@@ -271,49 +259,6 @@ function App() {
     },
     [nodes],
   );
-  const handleGenerate = useCallback(
-    async (nodeId: string) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, generating: true } } : n,
-        ),
-      );
-      const ancestorIds = getAncestorIds(nodeId, nodes as Node[], edges);
-      const orderedIds = [...ancestorIds, nodeId];
-      const messages = buildMessages(orderedIds, nodes);
-      try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            script_description: scriptDescription || null,
-            messages,
-          }),
-        });
-        const json = await res.json();
-        setNodes((nds) =>
-          nds.map((n) => {
-            if (n.id !== nodeId) return n;
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                text: json.success ? json.text ?? "" : (n.data?.text as string) ?? "",
-                generating: false,
-              },
-            };
-          }),
-        );
-      } catch {
-        setNodes((nds) =>
-          nds.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, generating: false } } : n,
-          ),
-        );
-      }
-    },
-    [nodes, edges, scriptDescription, setNodes],
-  );
 
   const nodesWithCallbacks = useMemo(
     () =>
@@ -327,10 +272,9 @@ function App() {
           onDuplicate: handleDuplicate,
           onAddChild: handleAddChild,
           onDelete: handleDelete,
-          onGenerate: n.type === "our_response" ? handleGenerate : undefined,
         } as CardData,
       })),
-    [nodes, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete, handleGenerate],
+    [nodes, handleOpenTextEditor, handleTitleChange, handleCopy, handleDuplicate, handleAddChild, handleDelete],
   );
 
   const commentNodes: Node[] = useMemo(
@@ -481,6 +425,41 @@ function App() {
     }
   }, []);
 
+  const reloadFromServer = useCallback(async () => {
+    if (!currentProjectId) return;
+    const loaded = await loadProject(currentProjectId);
+    if (!loaded) return;
+    setNodes(loaded.nodes);
+    setEdges(loaded.edges);
+    setScriptDescription(loaded.scriptDescription);
+    setProjectName(loaded.name);
+    setComments(loaded.comments ?? []);
+    setRevision(loaded.revision);
+  }, [currentProjectId, setNodes, setEdges]);
+
+  useAutosave({
+    enabled: !loading && !!currentProjectId,
+    snapshot: {
+      projectId: currentProjectId,
+      revision,
+      name: projectName || "Без названия",
+      nodes,
+      edges,
+      scriptDescription,
+      comments,
+    },
+    onRevision: setRevision,
+    onConflict: async () => {
+      await reloadFromServer();
+      setSyncMessage("Проект изменился на сервере. Показана актуальная версия, это сохранение отменено.");
+    },
+    onRemote: async () => {
+      await reloadFromServer();
+    },
+    onError: setSyncMessage,
+    onClearError: () => setSyncMessage(null),
+  });
+
   if (loading) {
     return (
       <div className="app app--loading">
@@ -492,6 +471,11 @@ function App() {
   return (
     <div className="app">
       <div ref={flowContainerRef} className="app__flow-wrap">
+      {syncMessage && (
+        <div className="app__sync" role="status">
+          {syncMessage}
+        </div>
+      )}
       <ReactFlow
         nodes={displayNodes}
         edges={edges}
@@ -543,7 +527,6 @@ function App() {
       <TextEditorModal
         nodeId={editingNodeId}
         nodes={nodes}
-        scriptDescription={scriptDescription}
         onSave={handleSaveText}
         onClose={() => setEditingNodeId(null)}
       />
