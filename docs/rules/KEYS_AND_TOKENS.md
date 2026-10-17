@@ -785,6 +785,20 @@ git push origin --force --all
 
 ---
 
+## Доска скриптов (blocks/script_board)
+
+Не секреты. Пароли basic auth nginx (`alexey`, `sonya`) в репозиторий не класть.
+
+```env
+SCRIPT_BOARD_HOST=127.0.0.1
+SCRIPT_BOARD_PORT=8780
+SCRIPT_BOARD_STORAGE=blocks/script_board/storage
+```
+
+**Где используется:** `python -m blocks.script_board`. Автор правки в API берётся из заголовка `X-Remote-User` или Basic `Authorization`, отдельной переменной для этого нет. GRS AI доска больше не вызывает.
+
+---
+
 ## 📝 Чеклист настройки
 
 ### Первоначальная настройка:

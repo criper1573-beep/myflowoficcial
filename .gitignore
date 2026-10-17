@@ -30,6 +30,11 @@ storage/orchestrator_kz_paused
 *.log
 blocks/grs_image_web/users.json
 blocks/script_board/storage/projects.json
+blocks/script_board/storage/history/*.jsonl
+blocks/script_board/storage/.store.lock
+blocks/script_board/storage/*.tmp
+blocks/script_board/frontend/node_modules/
+blocks/script_board/frontend/dist/
 
 # Бекапы (локальные, не коммитятся)
 backups/backup_*/

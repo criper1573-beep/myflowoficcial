@@ -64,7 +64,7 @@
 | E5 | web_api | Веб-интерфейс / API управления | planned |
 | E6 | **проекты** | Конфигурация по каждому проекту (мультипроектность) | **ready** |
 | E7 | **flowcabinet_visualizer** | Визуализация кабинета в помещении (1 фото → 3 варианта, flowcabinet.ru) | **ready** |
-| E8 | **script_board** | Доска скриптов диалогов (карточки, GRS AI, экспорт PDF). Деплой: script.flowcabinet.ru — [DEPLOY_SCRIPT_BOARD.md](../guides/DEPLOY_SCRIPT_BOARD.md) | **ready** |
+| E8 | **script_board** | Доска скриптов диалогов (карточки, связи, история правок, API для бота). Деплой: script.flowcabinet.ru — [DEPLOY_SCRIPT_BOARD.md](../guides/DEPLOY_SCRIPT_BOARD.md) | **ready** |
 
 ---
 
