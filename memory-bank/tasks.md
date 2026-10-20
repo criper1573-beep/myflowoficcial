@@ -6,6 +6,21 @@
 
 ## Текущая задача
 
+**ID:** script-board-fast-deploy  
+**Описание:** Быстрый деплой доски скриптов: GitHub Actions собирает архив в Release, на VPS его ставит `blocks/script_board/deploy/fast-deploy.sh`. Автодеплоя на push нет. PR в `script-board/live-baseline`, без мержа.  
+**Сложность:** 2  
+**Статус:** сборка и проверки пройдены, PR открывается.
+
+### Сделано
+- [x] Workflow релиза `script-board-<sha7>`
+- [x] `deploy/fast-deploy.sh` и `deploy/FAST_DEPLOY.md`
+- [x] Бэкап `storage` и `.env`, откат при неуспешной проверке, `--rollback`
+- [x] actionlint, shellcheck, pytest, сборка фронта, прогон скрипта на фиктивном релизе
+
+---
+
+## Предыдущая задача
+
 **ID:** flowimage-store-fix  
 **Описание:** Проверить проект https://flowimage.store/: (1) почему на дашборд Generation не тянется информация о сгенерированном в flowimage.ru; (2) почему каждые 1–2 минуты приходят уведомления в Telegram о нерабочем quickpack, хотя на главной он отображается как работающий.
 

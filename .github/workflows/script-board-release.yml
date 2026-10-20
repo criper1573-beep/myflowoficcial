@@ -1,0 +1,140 @@
+# Сборка доски скриптов и публикация готового архива в GitHub Release.
+# На сервер этот workflow ничего не выкладывает.
+# Выкладка вручную: blocks/script_board/deploy/fast-deploy.sh
+
+name: Script Board release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - script-board/live-baseline
+      - live-baseline
+    paths:
+      - "blocks/script_board/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: script-board-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test backend
+        run: |
+          set -euo pipefail
+          python -m pip install -r blocks/script_board/requirements.txt pytest httpx
+          python -m compileall -q blocks/script_board
+          python -m pytest blocks/script_board/tests -q
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: blocks/script_board/frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: blocks/script_board/frontend
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          test -f ../dist/index.html
+          test -d ../dist/assets
+
+      - name: Package archive
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          short=$(printf '%s' "$RELEASE_SHA" | cut -c1-7)
+          tag="script-board-${short}"
+          root="${RUNNER_TEMP}/script-board-pkg"
+          rm -rf "$root"
+          mkdir -p "$root/script_board"
+          tar -C blocks/script_board \
+            --exclude=frontend/node_modules \
+            --exclude=storage/projects.json \
+            --exclude=storage/history \
+            --exclude=storage/.store.lock \
+            --exclude='storage/*.tmp' \
+            --exclude=.env \
+            --exclude=__pycache__ \
+            --exclude='*.pyc' \
+            --exclude=frontend/tsconfig.tsbuildinfo \
+            -cf - . | tar -C "$root/script_board" -xf -
+          printf '%s\n' "$tag" > "$root/script_board/RELEASE"
+          test -f "$root/script_board/dist/index.html"
+          test -d "$root/script_board/dist/assets"
+          test -f "$root/script_board/api.py"
+          test -f "$root/script_board/requirements.txt"
+          if [[ -e "$root/script_board/frontend/node_modules" ]]; then
+            echo "в архив попал frontend/node_modules" >&2
+            exit 1
+          fi
+          if [[ -e "$root/script_board/storage/projects.json" || -e "$root/script_board/.env" ]]; then
+            echo "в архив попали данные или .env" >&2
+            exit 1
+          fi
+          archive="${RUNNER_TEMP}/${tag}.tar.gz"
+          checksum="${archive}.sha256"
+          tar -C "$root" -czf "$archive" script_board
+          (
+            cd "$(dirname "$archive")"
+            sha256sum "$(basename "$archive")" > "$(basename "$checksum")"
+            sha256sum -c "$(basename "$checksum")"
+          )
+          if tar -tzf "$archive" | grep -q 'node_modules/'; then
+            echo "node_modules внутри tar.gz" >&2
+            exit 1
+          fi
+          {
+            echo "SHORT=${short}"
+            echo "TAG=${tag}"
+            echo "ARCHIVE=${archive}"
+            echo "CHECKSUM=${checksum}"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Релиз ${TAG} уже есть, повторно не создаю"
+            exit 0
+          fi
+          sum=$(cut -d ' ' -f 1 "$CHECKSUM")
+          notes="${RUNNER_TEMP}/script-board-notes.md"
+          cat > "$notes" <<EOF
+          Готовый архив доски скриптов для ручной выкладки на script.flowcabinet.ru.
+
+          - Тег: \`${TAG}\`
+          - Коммит: \`${RELEASE_SHA}\`
+          - sha256: \`${sum}\`
+          - Внутри исходники блока и собранный \`dist/\`. Нет \`node_modules\`, \`projects.json\` и \`.env\`.
+          - Сервер этим релизом сам не обновляется. Дальше на VPS: \`blocks/script_board/deploy/fast-deploy.sh\`.
+          EOF
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --latest=false \
+            --title "$TAG" \
+            --notes-file "$notes" \
+            "$ARCHIVE" \
+            "$CHECKSUM"
