@@ -4,7 +4,9 @@
 
 ---
 
-**Текущая задача:** flowimage-store-fix — проверка flowimage.store: (1) данные Generation с flowimage.ru не попадают на дашборд; (2) частые Telegram-алерты про quickpack при «работающем» сервисе на главной.
+**Текущая задача:** script-board-fast-deploy — GitHub Release со сборкой доски скриптов и ручной `fast-deploy.sh` на VPS. Push сервер не обновляет. База ветки: `script-board/live-baseline`.
+
+Предыдущая задача: flowimage-store-fix — проверка flowimage.store: (1) данные Generation с flowimage.ru не попадают на дашборд; (2) частые Telegram-алерты про quickpack при «работающем» сервисе на главной.
 
 **Ключевые файлы:**
 - `blocks/analytics/api.py` — API дашборда, чтение generation из `blocks/grs_image_web/generated` и `uploaded` (локальная ФС).

@@ -4,6 +4,15 @@
 
 ---
 
+## script-board-fast-deploy — 2026-10-20
+
+Быстрая выкладка доски скриптов без автодеплоя на push.
+
+- Workflow `.github/workflows/script-board-release.yml`: тесты бэкенда, сборка фронта, релиз `script-board-<sha7>` с архивом и sha256.
+- `blocks/script_board/deploy/fast-deploy.sh`: скачивание по токену из `/root/.config/flow/gh-token`, бэкап данных и `.env`, подмена папки, проверка 200/401, откат и `--rollback`.
+- Данные — файлы `storage/projects.json` и `storage/history`, не база.
+- Проверки: actionlint, shellcheck, pytest (9 passed), `npm run build`, локальный прогон скрипта (sha256, 401, сохранность данных, rollback, автооткат).
+
 ## flowimage-store-fix (flowimage.store: Generation + Quickpack алерты) — 2026-02-18
 
 ### Выполнено

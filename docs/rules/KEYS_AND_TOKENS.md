@@ -61,6 +61,18 @@ notepad .env
 
 ---
 
+### GitHub token только на чтение (быстрый деплой доски скриптов)
+
+**Назначение:** Скачать релиз `script-board-<sha7>` с GitHub на VPS. Этим токеном сервер не пушит код и не создаёт релизы. Автодеплоя по push нет.
+
+**Где задать:** файл `/root/.config/flow/gh-token` на сервере `85.198.66.62`. Одна строка, без кавычек. Нужен fine-grained PAT: доступ только к репозиторию `criper1573-beep/myflowoficcial`, право Contents — Read-only. Права файла `600`. Значение в git и в `.env` не класть.
+
+**Где получить:** GitHub → Settings → Developer settings → Personal access tokens.
+
+**Где используется:** `blocks/script_board/deploy/fast-deploy.sh`. Описание выкладки: `blocks/script_board/deploy/FAST_DEPLOY.md`.
+
+---
+
 ## 🔑 Список всех ключей и токенов
 
 ### 1. GRS AI API (для AI генерации)

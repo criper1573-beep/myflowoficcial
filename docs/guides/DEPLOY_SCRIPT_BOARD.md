@@ -3,6 +3,8 @@
 Сервис: `script-board`. Сайт: https://script.flowcabinet.ru.  
 Код блока: `blocks/script_board`. Этот документ не деплоит и не меняет живой nginx.
 
+Быстрый путь: GitHub Actions собирает фронт и публикует архив в релиз `script-board-<sha7>`. На VPS его ставит `blocks/script_board/deploy/fast-deploy.sh`. Push сам сервер не обновляет. Подробности: [blocks/script_board/deploy/FAST_DEPLOY.md](../../blocks/script_board/deploy/FAST_DEPLOY.md).
+
 Пароли и логины basic auth здесь не хранятся.
 
 ## Что важно на сервере

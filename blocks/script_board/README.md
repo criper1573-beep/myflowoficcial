@@ -13,7 +13,7 @@
 - История правок: `GET /api/projects/{id}/history`. Клиент для панели: `useHistory` и `api` во фронте.
 - Цели проекта: что нужно узнать у клиента. У каждого проекта свой список, правки идут в историю. Панель справа, вкладкой рядом с историей.
 
-Контракт для бота: [API.md](API.md). Выкладка: [docs/guides/DEPLOY_SCRIPT_BOARD.md](../../docs/guides/DEPLOY_SCRIPT_BOARD.md).
+Контракт для бота: [API.md](API.md). Быстрая выкладка готового архива: [deploy/FAST_DEPLOY.md](deploy/FAST_DEPLOY.md). Ручной путь: [docs/guides/DEPLOY_SCRIPT_BOARD.md](../../docs/guides/DEPLOY_SCRIPT_BOARD.md).
 
 ## Запуск
 
